@@ -1,1 +1,5 @@
 [2026-05-21 12:19:48] INFO     [hotel_ai_dashboard] Dashboard application started
+[2026-05-21 18:25:53] INFO     [hotel_ai_dashboard] Dashboard database connected successfully
+[2026-05-21 18:25:53] INFO     [hotel_ai_dashboard] Retrieved competitor prices: 1 records
+[2026-05-21 18:27:29] INFO     [hotel_ai_dashboard] Dashboard database connected successfully
+[2026-05-21 18:27:29] INFO     [hotel_ai_dashboard] Retrieved competitor prices: 1 records

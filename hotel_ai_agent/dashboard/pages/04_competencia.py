@@ -59,6 +59,11 @@ if current_prices.empty:
 if competitor_data is not None and not competitor_data.empty:
     st.caption("📊 Datos reales")
 
+    required_cols = {'source', 'nightly_price'}
+    if not required_cols.issubset(competitor_data.columns):
+        st.error("Los datos de competencia llegaron incompletos. Falta source o nightly_price.")
+        st.stop()
+
     latest_capture = pd.to_datetime(competitor_data['captured_at']).max() if 'captured_at' in competitor_data.columns else None
     total_sources = competitor_data['platform'].nunique() if 'platform' in competitor_data.columns else 0
 
@@ -85,7 +90,10 @@ if competitor_data is not None and not competitor_data.empty:
     raw_preview = competitor_data.copy()
     raw_preview['captured_at'] = pd.to_datetime(raw_preview['captured_at']).dt.strftime('%d/%m/%Y %H:%M') if 'captured_at' in raw_preview.columns else '-'
     preview_cols = [c for c in ['captured_at', 'source', 'competitor', 'platform', 'nightly_price', 'room_type'] if c in raw_preview.columns]
-    st.dataframe(raw_preview[preview_cols].head(50), use_container_width=True, hide_index=True)
+    if preview_cols:
+        st.dataframe(raw_preview[preview_cols].head(50), use_container_width=True, hide_index=True)
+    else:
+        st.info("No hay columnas suficientes para mostrar la vista cruda.")
 
     st.markdown("---")
 
@@ -129,25 +137,32 @@ if competitor_data is not None and not competitor_data.empty:
     col1, col2 = st.columns(2)
     
     with col1:
+        platform_options = competitor_data['platform'].unique().tolist() if 'platform' in competitor_data.columns else []
         selected_platform = st.multiselect(
             "Plataforma",
-            options=competitor_data['platform'].unique().tolist(),
-            default=competitor_data['platform'].unique().tolist()
+            options=platform_options,
+            default=platform_options
         )
     
     with col2:
-        date_range = st.date_input(
-            "Rango de Fechas",
-            value=(pd.to_datetime(competitor_data['date']).min(), pd.to_datetime(competitor_data['date']).max()),
-            key="comp_date_range"
-        )
+        if 'date' in competitor_data.columns:
+            date_range = st.date_input(
+                "Rango de Fechas",
+                value=(pd.to_datetime(competitor_data['date']).min(), pd.to_datetime(competitor_data['date']).max()),
+                key="comp_date_range"
+            )
+        else:
+            date_range = None
     
     # Filter data
-    filtered_data = competitor_data[
-        (competitor_data['platform'].isin(selected_platform)) &
-        (pd.to_datetime(competitor_data['date']) >= pd.to_datetime(date_range[0])) &
-        (pd.to_datetime(competitor_data['date']) <= pd.to_datetime(date_range[1]))
-    ]
+    filtered_data = competitor_data.copy()
+    if 'platform' in filtered_data.columns and selected_platform:
+        filtered_data = filtered_data[filtered_data['platform'].isin(selected_platform)]
+    if date_range is not None and 'date' in filtered_data.columns:
+        filtered_data = filtered_data[
+            (pd.to_datetime(filtered_data['date']) >= pd.to_datetime(date_range[0])) &
+            (pd.to_datetime(filtered_data['date']) <= pd.to_datetime(date_range[1]))
+        ]
     
     st.markdown("---")
     
@@ -155,31 +170,50 @@ if competitor_data is not None and not competitor_data.empty:
     st.subheader("Detalles de Competencia")
     
     display_df = filtered_data.copy()
-    display_df['date'] = pd.to_datetime(display_df['date']).dt.strftime('%d/%m/%Y')
-    display_df['nightly_price'] = display_df['nightly_price'].apply(lambda x: f"${x:,.0f}")
-    display_df['captured_at'] = pd.to_datetime(display_df['captured_at']).dt.strftime('%H:%M') if 'captured_at' in display_df.columns else '-'
-    
-    display_df = display_df[[
-        'date', 'competitor', 'platform', 'nightly_price', 'room_type', 'captured_at'
-    ]]
-    display_df.columns = ['Fecha', 'Competidor', 'Plataforma', 'Precio Noche', 'Tipo Habitación', 'Capturado a las']
-    
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    if not display_df.empty:
+        if 'date' in display_df.columns:
+            display_df['date'] = pd.to_datetime(display_df['date']).dt.strftime('%d/%m/%Y')
+        if 'nightly_price' in display_df.columns:
+            display_df['nightly_price'] = display_df['nightly_price'].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "-")
+        if 'captured_at' in display_df.columns:
+            display_df['captured_at'] = pd.to_datetime(display_df['captured_at']).dt.strftime('%H:%M')
+        
+        wanted_cols = ['date', 'competitor', 'platform', 'nightly_price', 'room_type', 'captured_at']
+        display_cols = [c for c in wanted_cols if c in display_df.columns]
+        if display_cols:
+            display_df = display_df[display_cols]
+            rename_map = {
+                'date': 'Fecha',
+                'competitor': 'Competidor',
+                'platform': 'Plataforma',
+                'nightly_price': 'Precio Noche',
+                'room_type': 'Tipo Habitación',
+                'captured_at': 'Capturado a las',
+            }
+            display_df = display_df.rename(columns=rename_map)
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No hay columnas suficientes para construir la tabla de competencia.")
+    else:
+        st.info("No hay filas que cumplan el filtro actual.")
     
     st.markdown("---")
     
     # Analytics
     st.subheader("Análisis por Competidor")
     
-    competitor_summary = filtered_data.groupby('competitor').agg({
-        'nightly_price': ['mean', 'min', 'max', 'std']
-    }).reset_index()
-    competitor_summary.columns = ['Competidor', 'Promedio', 'Mínimo', 'Máximo', 'Desv. Est']
-    
-    for col in ['Promedio', 'Mínimo', 'Máximo', 'Desv. Est']:
-        competitor_summary[col] = competitor_summary[col].apply(lambda x: f"${x:,.0f}")
-    
-    st.dataframe(competitor_summary, use_container_width=True, hide_index=True)
+    if 'competitor' in filtered_data.columns and 'nightly_price' in filtered_data.columns and not filtered_data.empty:
+        competitor_summary = filtered_data.groupby('competitor').agg({
+            'nightly_price': ['mean', 'min', 'max', 'std']
+        }).reset_index()
+        competitor_summary.columns = ['Competidor', 'Promedio', 'Mínimo', 'Máximo', 'Desv. Est']
+        
+        for col in ['Promedio', 'Mínimo', 'Máximo', 'Desv. Est']:
+            competitor_summary[col] = competitor_summary[col].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "-")
+        
+        st.dataframe(competitor_summary, use_container_width=True, hide_index=True)
+    else:
+        st.info("No hay datos suficientes para el análisis por competidor.")
     
 else:
     st.warning("No hay datos de competencia en la base de datos todavía.")

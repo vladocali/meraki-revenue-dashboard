@@ -484,6 +484,6 @@ _dashboard_db = None
 def get_dashboard_db() -> DashboardDatabase:
     """Get or create dashboard database instance."""
     global _dashboard_db
-    if _dashboard_db is None:
+    if _dashboard_db is None or not _dashboard_db.is_available():
         _dashboard_db = DashboardDatabase()
     return _dashboard_db

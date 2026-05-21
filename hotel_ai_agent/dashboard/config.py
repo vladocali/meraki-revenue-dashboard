@@ -19,12 +19,14 @@ def _get_config_value(name: str, default: str = "") -> str:
 
     return default
 
-# Load environment variables
-load_dotenv()
-
 # Paths
 DASHBOARD_DIR = Path(__file__).parent
 PROJECT_DIR = DASHBOARD_DIR.parent
+BASE_DIR = PROJECT_DIR
+
+# Load environment variables
+load_dotenv(BASE_DIR / ".env")
+
 LOGS_DIR = PROJECT_DIR / "logs"
 REPORTS_DIR = PROJECT_DIR / "reports"
 
@@ -69,7 +71,7 @@ KPI_THRESHOLDS = {
 # Database
 DB_HOST = _get_config_value("DB_HOST", "127.0.0.1")
 DB_PORT = int(_get_config_value("DB_PORT", "3306"))
-DB_NAME = _get_config_value("DB_NAME", "meraki")
+DB_NAME = _get_config_value("DB_NAME", "dbmeraki")
 DB_USER = _get_config_value("DB_USER", "root")
 DB_PASSWORD = _get_config_value("DB_PASSWORD", "")
 
