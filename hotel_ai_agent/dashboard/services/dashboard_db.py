@@ -127,18 +127,24 @@ class DashboardDatabase:
             return pd.DataFrame()
     
     def get_current_room_prices(self) -> pd.DataFrame:
-        """Get current room prices from parametros table."""
+        """Get current room prices by analyzing recent stays."""
         try:
             query = """
             SELECT 
-                par.parametro as room_param,
-                par.valor as price_value,
-                h.nombre as room_name,
-                h.id_habitacion as room_id
-            FROM parametros par
-            LEFT JOIN habitaciones h ON CAST(REPLACE(par.parametro, 'CotizacionHab', '') as DECIMAL) = h.id_habitacion
-            WHERE par.parametro LIKE 'CotizacionHab%'
-            AND h.activa = 1
+                h.nombre AS room,
+                h.id_habitacion AS room_id,
+                ROUND(AVG(d.Valor) / NULLIF(DATEDIFF(d.CheckOut, d.CheckIn), 0), 0) AS current_price,
+                COUNT(*) AS recent_stays,
+                MAX(d.CheckIn) AS last_booking,
+                MIN(d.Valor) AS min_price,
+                MAX(d.Valor) AS max_price
+            FROM habitaciones h
+            LEFT JOIN datos d ON TRIM(d.Habitacion) = h.nombre 
+                AND d.CheckIn >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                AND d.EstadoOperacion NOT IN ('Cancelada', 'No show')
+            WHERE h.activa = 1
+            GROUP BY h.id_habitacion, h.nombre
+            ORDER BY h.nombre
             """
             
             result = self.execute_query(query)
@@ -148,6 +154,202 @@ class DashboardDatabase:
         except Exception as e:
             dashboard_logger.error(f"Error fetching current prices: {e}")
             return pd.DataFrame()
+    
+    def get_revenue_7d(self) -> dict:
+        """Get real revenue from last 7 days."""
+        try:
+            query = """
+            SELECT 
+                COALESCE(SUM(CASE WHEN a.TipoPago = 'ESTADIA' THEN a.Monto ELSE 0 END), 0) AS revenue_stays,
+                COALESCE(SUM(CASE WHEN a.TipoPago = 'CONSUMOS' THEN a.Monto ELSE 0 END), 0) AS revenue_consumptions,
+                COUNT(DISTINCT a.DatosId) AS transaction_count
+            FROM abonos a
+            WHERE a.FechaPago >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            """
+            
+            result = self.execute_query(query)
+            if not result.empty:
+                row = result.iloc[0]
+                total = row['revenue_stays'] + row['revenue_consumptions']
+                dashboard_logger.info(f"Real 7-day revenue: {total:,.0f} COP")
+                return {
+                    'total': float(total),
+                    'stays': float(row['revenue_stays']),
+                    'consumptions': float(row['revenue_consumptions']),
+                    'transactions': int(row['transaction_count'])
+                }
+            return {'total': 0, 'stays': 0, 'consumptions': 0, 'transactions': 0}
+        
+        except Exception as e:
+            dashboard_logger.error(f"Error fetching 7-day revenue: {e}")
+            return {}
+    
+    def get_daily_revenue(self, days: int = 30) -> pd.DataFrame:
+        """Get daily revenue breakdown for the last N days."""
+        try:
+            query = f"""
+            SELECT 
+                DATE(a.FechaPago) AS date,
+                SUM(CASE WHEN a.TipoPago = 'ESTADIA' THEN a.Monto ELSE 0 END) AS revenue_stays,
+                SUM(CASE WHEN a.TipoPago = 'CONSUMOS' THEN a.Monto ELSE 0 END) AS revenue_consumptions,
+                COUNT(DISTINCT a.DatosId) AS transactions
+            FROM abonos a
+            WHERE a.FechaPago >= DATE_SUB(CURDATE(), INTERVAL {days} DAY)
+            GROUP BY DATE(a.FechaPago)
+            ORDER BY date DESC
+            """
+            
+            result = self.execute_query(query)
+            dashboard_logger.info(f"Retrieved {len(result)} days of revenue data")
+            return result
+        
+        except Exception as e:
+            dashboard_logger.error(f"Error fetching daily revenue: {e}")
+            return pd.DataFrame()
+    
+    def get_adr(self, days: int = 30) -> float:
+        """Calculate Average Daily Rate (ADR) for recent bookings."""
+        try:
+            query = f"""
+            SELECT 
+                ROUND(AVG(d.Valor) / NULLIF(DATEDIFF(d.CheckOut, d.CheckIn), 0), 0) AS adr
+            FROM datos d
+            WHERE d.CheckIn >= DATE_SUB(CURDATE(), INTERVAL {days} DAY)
+            AND d.EstadoOperacion NOT IN ('Cancelada', 'No show')
+            AND DATEDIFF(d.CheckOut, d.CheckIn) > 0
+            """
+            
+            result = self.execute_query(query)
+            if not result.empty and result.iloc[0]['adr'] is not None:
+                adr = float(result.iloc[0]['adr'])
+                dashboard_logger.info(f"Current ADR: {adr:,.0f} COP")
+                return adr
+            return 0.0
+        
+        except Exception as e:
+            dashboard_logger.error(f"Error calculating ADR: {e}")
+            return 0.0
+    
+    def get_revpar(self, days: int = 30) -> float:
+        """Calculate RevPAR (Revenue Per Available Room) = ADR * Occupancy."""
+        try:
+            occupancy_summary = self.get_daily_occupancy_summary()
+            adr = self.get_adr(days)
+            
+            if not occupancy_summary.empty:
+                avg_occupancy = occupancy_summary['occupancy_pct'].mean() / 100  # Convert % to decimal
+                revpar = adr * avg_occupancy
+                dashboard_logger.info(f"Current RevPAR: {revpar:,.0f} COP")
+                return revpar
+            return 0.0
+        
+        except Exception as e:
+            dashboard_logger.error(f"Error calculating RevPAR: {e}")
+            return 0.0
+    
+    def get_price_history(self, room: str = None, days: int = 30) -> pd.DataFrame:
+        """Get price history from actual bookings."""
+        try:
+            room_filter = f"AND TRIM(d.Habitacion) = '{room}'" if room else ""
+            
+            query = f"""
+            SELECT 
+                DATE(d.CheckIn) AS date,
+                TRIM(d.Habitacion) AS room,
+                ROUND(d.Valor / NULLIF(DATEDIFF(d.CheckOut, d.CheckIn), 0), 0) AS price
+            FROM datos d
+            WHERE d.CheckIn >= DATE_SUB(CURDATE(), INTERVAL {days} DAY)
+            AND d.EstadoOperacion NOT IN ('Cancelada', 'No show')
+            {room_filter}
+            ORDER BY d.CheckIn DESC
+            """
+            
+            result = self.execute_query(query)
+            dashboard_logger.info(f"Retrieved price history: {len(result)} records")
+            return result
+        
+        except Exception as e:
+            dashboard_logger.error(f"Error fetching price history: {e}")
+            return pd.DataFrame()
+    
+    def get_competitor_insights(self) -> dict:
+        """Get intelligence about market pricing."""
+        try:
+            # Get average prices by room type
+            query = """
+            SELECT 
+                CASE 
+                    WHEN LENGTH(TRIM(h.nombre)) = 3 THEN 'Estándar'
+                    WHEN LENGTH(TRIM(h.nombre)) = 3 AND h.nombre LIKE '%0%' THEN 'Estándar'
+                    ELSE 'Premium'
+                END AS room_type,
+                ROUND(AVG(d.Valor) / NULLIF(DATEDIFF(d.CheckOut, d.CheckIn), 0), 0) AS avg_price,
+                COUNT(*) AS bookings
+            FROM habitaciones h
+            LEFT JOIN datos d ON TRIM(d.Habitacion) = h.nombre
+                AND d.CheckIn >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)
+                AND d.EstadoOperacion NOT IN ('Cancelada', 'No show')
+            WHERE h.activa = 1
+            GROUP BY room_type
+            """
+            
+            result = self.execute_query(query)
+            dashboard_logger.info(f"Retrieved market insights")
+            return result.to_dict('records') if not result.empty else []
+        
+        except Exception as e:
+            dashboard_logger.error(f"Error fetching competitor insights: {e}")
+            return []
+    
+    def get_alerts(self) -> list:
+        """Generate real alerts based on current data."""
+        try:
+            alerts = []
+            
+            # Alert 1: High occupancy
+            occupancy_summary = self.get_daily_occupancy_summary()
+            if not occupancy_summary.empty:
+                avg_occupancy = occupancy_summary['occupancy_pct'].mean()
+                if avg_occupancy > 80:
+                    alerts.append({
+                        'type': 'HIGH_OCCUPANCY',
+                        'title': 'Alta ocupación detectada',
+                        'message': f'Ocupación promedio: {avg_occupancy:.1f}%. Oportunidad para aumentar precios.',
+                        'severity': 'info',
+                        'icon': '📈'
+                    })
+                elif avg_occupancy < 50:
+                    alerts.append({
+                        'type': 'LOW_OCCUPANCY',
+                        'title': 'Ocupación baja',
+                        'message': f'Ocupación promedio: {avg_occupancy:.1f}%. Considere estrategias para aumentar reservas.',
+                        'severity': 'warning',
+                        'icon': '📉'
+                    })
+            
+            # Alert 2: Revenue trend
+            revenue_data = self.get_daily_revenue(7)
+            if len(revenue_data) >= 2:
+                recent_revenue = revenue_data.iloc[0]['revenue_stays'] + revenue_data.iloc[0]['revenue_consumptions']
+                previous_revenue = revenue_data.iloc[-1]['revenue_stays'] + revenue_data.iloc[-1]['revenue_consumptions']
+                
+                if recent_revenue > 0:
+                    trend = ((recent_revenue - previous_revenue) / previous_revenue * 100) if previous_revenue > 0 else 0
+                    if trend > 20:
+                        alerts.append({
+                            'type': 'POSITIVE_TREND',
+                            'title': 'Tendencia positiva en ingresos',
+                            'message': f'Aumento de {trend:.1f}% respecto a la semana anterior.',
+                            'severity': 'success',
+                            'icon': '💰'
+                        })
+            
+            dashboard_logger.info(f"Generated {len(alerts)} alerts")
+            return alerts
+        
+        except Exception as e:
+            dashboard_logger.error(f"Error generating alerts: {e}")
+            return []
     
     def get_revenue_recommendations(self, limit: int = 100) -> pd.DataFrame:
         """Get AI revenue recommendations."""

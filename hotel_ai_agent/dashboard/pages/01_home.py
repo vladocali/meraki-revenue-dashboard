@@ -33,35 +33,108 @@ st.markdown("""
 
 @st.cache_data(ttl=300)
 def load_data():
-    """Load all data with caching."""
+    """Load all data from real database with fallback to mock."""
     try:
-        occupancy_source = 'mock'
-        occupancy_data = pd.DataFrame()
         db = get_dashboard_db()
+        
+        # Initialize with defaults
+        data = {
+            'occupancy_data': pd.DataFrame(),
+            'occupancy_source': 'mock',
+            'metrics': {},
+            'suggestions': [],
+            'alerts': [],
+            'price_history': pd.DataFrame(),
+        }
+        
+        # Try to load from real database
         if db.is_available():
+            # Occupancy data
             occupancy_data = db.get_daily_occupancy_summary()
             if not occupancy_data.empty:
-                occupancy_source = 'db'
-
-        if occupancy_data.empty:
-            occupancy_data = get_mock_data('daily_summary')
-
-        metrics = get_mock_data('revenue')
-        suggestions = get_mock_data('suggestions')
-        alerts = get_mock_data('alerts')
-        competitor_data = get_mock_data('competitor')
+                data['occupancy_data'] = occupancy_data
+                data['occupancy_source'] = 'db'
+            
+            # Revenue metrics
+            revenue_7d = db.get_revenue_7d()
+            occupancy_summary = db.get_daily_occupancy_summary()
+            adr = db.get_adr()
+            revpar = db.get_revpar()
+            
+            if not occupancy_summary.empty:
+                avg_occupancy = occupancy_summary['occupancy_pct'].mean() / 100
+            else:
+                avg_occupancy = 0
+            
+            data['metrics'] = {
+                'occupancy_7d': avg_occupancy,
+                'adr': adr,
+                'revpar': revpar,
+                'revenue_7d': revenue_7d.get('total', 0),
+                'revenue_7d_stays': revenue_7d.get('stays', 0),
+                'revenue_7d_consumptions': revenue_7d.get('consumptions', 0),
+                'daily_potential': adr * 9 if adr > 0 else 0,  # 9 rooms × ADR
+                'daily_actual': revenue_7d.get('total', 0) / 7 if revenue_7d.get('total', 0) > 0 else 0,
+                'lost_revenue_daily': 0,  # Calculate if needed
+            }
+            
+            # Price history from real data
+            price_history = db.get_price_history(days=30)
+            if not price_history.empty:
+                data['price_history'] = price_history
+            
+            # Alerts from real data
+            alerts = db.get_alerts()
+            data['alerts'] = alerts if alerts else []
         
-        return {
-            'occupancy_data': occupancy_data,
-            'occupancy_source': occupancy_source,
-            'metrics': metrics,
-            'suggestions': suggestions,
-            'alerts': alerts,
-            'competitor_data': competitor_data,
-        }
+        # Fallback to mock if database not available or missing data
+        if data['occupancy_data'].empty:
+            data['occupancy_data'] = get_mock_data('daily_summary')
+            data['occupancy_source'] = 'mock'
+        
+        if not data['metrics']:
+            mock_revenue = get_mock_data('revenue')
+            data['metrics'] = mock_revenue
+        
+        if not data['alerts']:
+            data['alerts'] = get_mock_data('alerts')
+        
+        if data['price_history'].empty:
+            data['price_history'] = get_mock_data('price_history')
+        
+        # Suggestions (can combine real+mock)
+        try:
+            current_prices = db.get_current_room_prices() if db.is_available() else pd.DataFrame()
+            if not current_prices.empty:
+                # Generate basic suggestions from real prices
+                suggestions = []
+                for idx, room in current_prices.iterrows():
+                    suggestions.append({
+                        'room': room.get('room', 'Unknown'),
+                        'action': 'MAINTAIN',
+                        'reason': 'Precios estables basados en demanda actual',
+                        'estimated_impact': 0,
+                    })
+                data['suggestions'] = suggestions[:5]  # Top 5
+        except:
+            pass
+        
+        if not data['suggestions']:
+            data['suggestions'] = get_mock_data('suggestions')
+        
+        return data
+    
     except Exception as e:
         dashboard_logger.error(f"Error loading dashboard data: {e}")
-        return None
+        # Return mock data as fallback
+        return {
+            'occupancy_data': get_mock_data('daily_summary'),
+            'occupancy_source': 'mock',
+            'metrics': get_mock_data('revenue'),
+            'suggestions': get_mock_data('suggestions'),
+            'alerts': get_mock_data('alerts'),
+            'price_history': get_mock_data('price_history'),
+        }
 
 def render_kpi_row():
     """Render KPI metrics row."""
@@ -72,40 +145,47 @@ def render_kpi_row():
     
     metrics = data['metrics']
     occupancy_data = data['occupancy_data']
-    competitor_data = data['competitor_data']
     
     # Calculate analytics
-    avg_occ = occupancy_data['occupancy_pct'].mean() / 100 if not occupancy_data.empty else 0
-    comp_avg_price = competitor_data['nightly_price'].mean() if not competitor_data.empty else 0
+    if not occupancy_data.empty and 'occupancy_pct' in occupancy_data.columns:
+        avg_occ_pct = occupancy_data['occupancy_pct'].mean()
+        avg_occ = avg_occ_pct / 100
+    else:
+        avg_occ = 0
+        avg_occ_pct = 0
+    
+    adr = metrics.get('adr', 0)
+    revpar = metrics.get('revpar', 0)
+    revenue_7d = metrics.get('revenue_7d', 0)
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric(
             label="📊 Ocupación Promedio (7d)",
-            value=format_percentage(avg_occ),
-            delta=f"{avg_occ*100:.1f}%"
+            value=f"{avg_occ_pct:.1f}%",
+            delta=format_occupancy_status(avg_occ_pct)
         )
     
     with col2:
         st.metric(
             label="💰 ADR (Tarifa Promedio)",
-            value=format_currency(metrics['adr']),
-            delta=f"${metrics['adr']:,.0f}"
+            value=format_currency(adr),
+            delta=f"${adr:,.0f}"
         )
     
     with col3:
         st.metric(
             label="📈 RevPAR",
-            value=format_currency(metrics['revpar']),
-            delta=f"${metrics['revpar']:,.0f}"
+            value=format_currency(revpar),
+            delta=f"${revpar:,.0f}"
         )
     
     with col4:
         st.metric(
-            label="💵 Ingresos Proyectados (7d)",
-            value=format_currency(metrics['revenue_7d']),
-            delta=f"COP {metrics['revenue_7d']:,.0f}"
+            label="💵 Ingresos Últimos 7d",
+            value=format_currency(revenue_7d),
+            delta=f"COP {revenue_7d:,.0f}"
         )
 
 def render_charts():
@@ -121,7 +201,7 @@ def render_charts():
             create_occupancy_line_chart(data['occupancy_data']),
             use_container_width=True
         )
-        st.caption("Datos reales" if data.get('occupancy_source') == 'db' else "Datos demo")
+        st.caption("📊 Datos reales" if data.get('occupancy_source') == 'db' else "📊 Datos demo")
     
     with col2:
         st.plotly_chart(
@@ -129,22 +209,50 @@ def render_charts():
             use_container_width=True
         )
     
-    # Revenue forecast
+    # Revenue and Price trends
     col3, col4 = st.columns(2)
     with col3:
-        st.plotly_chart(
-            create_revenue_forecast_chart(data['metrics']),
-            use_container_width=True
-        )
+        # Create a revenue trend based on real data
+        revenue_data = get_dashboard_db().get_daily_revenue(7) if get_dashboard_db().is_available() else pd.DataFrame()
+        
+        if not revenue_data.empty:
+            import plotly.graph_objects as go
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=revenue_data['date'],
+                y=revenue_data['revenue_stays'],
+                mode='lines+markers',
+                name='Ingresos (Estadías)',
+                line=dict(color=COLORS['success'], width=2),
+                fill='tozeroy',
+                fillcolor=f"rgba(76, 175, 80, 0.1)"
+            ))
+            fig.update_layout(
+                title='Ingresos Últimos 7 Días',
+                xaxis_title='Fecha',
+                yaxis_title='Ingresos (COP)',
+                template='plotly_white',
+                height=350,
+                margin=dict(l=0, r=0, t=40, b=0),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.plotly_chart(
+                create_revenue_forecast_chart(data['metrics']),
+                use_container_width=True
+            )
     
     with col4:
-        # Price trends
-        price_history = get_mock_data('price_history')
-        from dashboard.components.charts import create_price_history_chart
-        st.plotly_chart(
-            create_price_history_chart(price_history),
-            use_container_width=True
-        )
+        # Price trends from real data
+        price_history = data.get('price_history', pd.DataFrame())
+        if not price_history.empty:
+            from dashboard.components.charts import create_price_history_chart
+            st.plotly_chart(
+                create_price_history_chart(price_history),
+                use_container_width=True
+            )
+        else:
+            st.info("No hay histórico de precios disponible")
 
 def render_alerts():
     """Render AI alerts."""

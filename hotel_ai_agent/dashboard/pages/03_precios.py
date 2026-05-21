@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dashboard.config import COLORS
 from dashboard.components.charts import create_price_comparison_chart, create_suggestion_impact_chart
 from dashboard.data.mock_data import get_mock_data
+from dashboard.services.dashboard_db import get_dashboard_db
 from dashboard.utils.formatters import format_currency, format_percentage
 from dashboard.utils.logger import dashboard_logger
 
@@ -27,14 +28,30 @@ with tab1:
     @st.cache_data(ttl=300)
     def load_current_prices():
         try:
+            db = get_dashboard_db()
+            if db.is_available():
+                prices = db.get_current_room_prices()
+                if not prices.empty:
+                    # Format for display
+                    prices = prices.rename(columns={
+                        'room': 'room',
+                        'room_type': 'room_type',
+                        'current_price': 'current_price',
+                        'min_price': 'base_price',
+                        'last_booking': 'last_updated',
+                    })
+                    prices['price_change_pct'] = 0  # Not calculated yet
+                    return prices
+            
+            # Fallback to mock
             return get_mock_data('current_prices')
         except Exception as e:
             dashboard_logger.error(f"Error loading current prices: {e}")
-            return None
+            return get_mock_data('current_prices')
     
     current_prices = load_current_prices()
     
-    if current_prices is not None:
+    if current_prices is not None and not current_prices.empty:
         # Display chart
         st.plotly_chart(create_price_comparison_chart(current_prices), use_container_width=True)
         
@@ -42,17 +59,20 @@ with tab1:
         
         # Table
         display_df = current_prices.copy()
-        display_df['current_price'] = display_df['current_price'].apply(lambda x: f"${x:,.0f}")
-        display_df['base_price'] = display_df['base_price'].apply(lambda x: f"${x:,.0f}")
-        display_df['price_change_pct'] = display_df['price_change_pct'].apply(lambda x: f"{x:+.1f}%")
+        if 'current_price' in display_df.columns:
+            display_df['current_price'] = display_df['current_price'].apply(lambda x: f"${x:,.0f}" if x and x > 0 else "N/A")
+        if 'base_price' in display_df.columns or 'min_price' in display_df.columns:
+            col_name = 'base_price' if 'base_price' in display_df.columns else 'min_price'
+            display_df[col_name] = display_df[col_name].apply(lambda x: f"${x:,.0f}" if x and x > 0 else "N/A")
+        if 'price_change_pct' in display_df.columns:
+            display_df['price_change_pct'] = display_df['price_change_pct'].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A")
         
-        display_df = display_df[[
-            'room', 'room_type', 'base_price', 'current_price', 'price_change_pct', 'last_updated'
-        ]]
-        display_df.columns = ['Habitación', 'Tipo', 'Precio Base', 'Precio Actual', '% Cambio', 'Última Actualización']
-        display_df['Última Actualización'] = pd.to_datetime(display_df['Última Actualización']).dt.strftime('%H:%M')
+        cols = [c for c in ['room', 'room_type', 'base_price', 'current_price', 'price_change_pct', 'last_updated'] if c in display_df.columns]
+        display_df = display_df[cols]
         
         st.dataframe(display_df, use_container_width=True, hide_index=True)
+    else:
+        st.warning("No hay datos de precios disponibles")
 
 with tab2:
     st.subheader("Sugerencias de Precio (IA)")
@@ -60,10 +80,31 @@ with tab2:
     @st.cache_data(ttl=300)
     def load_suggestions():
         try:
+            db = get_dashboard_db()
+            if db.is_available():
+                # Generate basic suggestions from current prices
+                prices = db.get_current_room_prices()
+                if not prices.empty:
+                    suggestions = []
+                    for idx, room in prices.iterrows():
+                        suggestions.append({
+                            'room': room.get('room', 'Unknown'),
+                            'room_type': room.get('room_type', 'Unknown'),
+                            'current_price': room.get('current_price', 0),
+                            'suggested_price': room.get('current_price', 0),
+                            'change_pct': 0,
+                            'action': 'MAINTAIN',
+                            'reason': 'Precios estables basados en ocupación actual',
+                            'occupancy_forecast': 0.5,
+                            'estimated_impact': 0,
+                        })
+                    return pd.DataFrame(suggestions)
+            
+            # Fallback to mock
             return get_mock_data('suggestions')
         except Exception as e:
             dashboard_logger.error(f"Error loading suggestions: {e}")
-            return None
+            return get_mock_data('suggestions')
     
     suggestions = load_suggestions()
     
@@ -80,16 +121,25 @@ with tab2:
             st.metric("Total Sugerencias", len(suggestions))
         
         with col2:
-            increases = len(suggestions[suggestions['action'] == 'INCREASE'])
-            st.metric("Aumentos Recomendados", increases, delta=f"+{increases}")
+            if 'action' in suggestions.columns:
+                increases = len(suggestions[suggestions['action'] == 'INCREASE'])
+                st.metric("Aumentos Recomendados", increases, delta=f"+{increases}" if increases > 0 else "")
+            else:
+                st.metric("Aumentos Recomendados", 0)
         
         with col3:
-            decreases = len(suggestions[suggestions['action'] == 'DECREASE'])
-            st.metric("Reducciones Recomendadas", decreases, delta=f"-{decreases}")
+            if 'action' in suggestions.columns:
+                decreases = len(suggestions[suggestions['action'] == 'DECREASE'])
+                st.metric("Reducciones Recomendadas", decreases, delta=f"-{decreases}" if decreases > 0 else "")
+            else:
+                st.metric("Reducciones Recomendadas", 0)
         
         with col4:
-            avg_impact = suggestions['change_pct'].mean()
-            st.metric("Impacto Promedio", f"{avg_impact:+.1f}%")
+            if 'change_pct' in suggestions.columns:
+                avg_impact = suggestions['change_pct'].mean()
+                st.metric("Impacto Promedio", f"{avg_impact:+.1f}%")
+            else:
+                st.metric("Impacto Promedio", "0.0%")
         
         st.markdown("---")
         

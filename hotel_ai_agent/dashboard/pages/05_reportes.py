@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dashboard.data.mock_data import get_mock_data
 from dashboard.services.analytics_service import AnalyticsService
 from dashboard.services.ai_insights import get_ai_service
+from dashboard.services.dashboard_db import get_dashboard_db
 from dashboard.utils.logger import dashboard_logger
 
 st.title("📑 Generación de Reportes")
@@ -27,17 +28,36 @@ with tab1:
     @st.cache_data(ttl=300)
     def load_report_data():
         try:
-            occupancy = get_mock_data('daily_summary')
-            metrics = get_mock_data('revenue')
+            db = get_dashboard_db()
+            
+            if db.is_available():
+                occupancy = db.get_daily_occupancy_summary()
+                if occupancy.empty:
+                    occupancy = get_mock_data('daily_summary')
+            else:
+                occupancy = get_mock_data('daily_summary')
+            
+            # Get real metrics
+            revenue_7d = db.get_revenue_7d() if db.is_available() else {}
+            adr = db.get_adr() if db.is_available() else 0
+            revpar = db.get_revpar() if db.is_available() else 0
+            
+            metrics = {
+                'adr': adr or get_mock_data('revenue')['adr'],
+                'revpar': revpar or get_mock_data('revenue')['revpar'],
+                'revenue_7d': revenue_7d.get('total', 0) or get_mock_data('revenue')['revenue_7d'],
+            }
+            
             suggestions = get_mock_data('suggestions')
+            
             return occupancy, metrics, suggestions
         except Exception as e:
             dashboard_logger.error(f"Error loading report data: {e}")
-            return None, None, None
+            return get_mock_data('daily_summary'), get_mock_data('revenue'), get_mock_data('suggestions')
     
     occupancy_data, metrics, suggestions = load_report_data()
     
-    if occupancy_data is not None:
+    if occupancy_data is not None and not occupancy_data.empty:
         # Report 1: Executive Summary
         with st.container():
             st.markdown("#### 📊 Reporte Ejecutivo (7 Días)")
@@ -53,19 +73,19 @@ with tab1:
                 """)
             
             with col2:
-                avg_occ = occupancy_data['occupancy_pct'].mean() / 100 if len(occupancy_data) > 0 else 0
+                avg_occ = occupancy_data['occupancy_pct'].mean() if 'occupancy_pct' in occupancy_data.columns else 0
                 st.markdown(f"""
                 **Métricas Clave**
-                - Ocupación Promedio: {avg_occ*100:.1f}%
-                - ADR: ${metrics['adr']:,.0f}
-                - RevPAR: ${metrics['revpar']:,.0f}
-                - Ingresos 7d: ${metrics['revenue_7d']:,.0f}
+                - Ocupación Promedio: {avg_occ:.1f}%
+                - ADR: ${metrics.get('adr', 0):,.0f}
+                - RevPAR: ${metrics.get('revpar', 0):,.0f}
+                - Ingresos 7d: ${metrics.get('revenue_7d', 0):,.0f}
                 """)
             
             with col3:
                 if st.download_button(
                     label="📥 Descargar",
-                    data=f"Reporte Ejecutivo\n{datetime.now()}\nOcupación: {avg_occ*100:.1f}%",
+                    data=f"Reporte Ejecutivo\n{datetime.now()}\nOcupación: {avg_occ:.1f}%",
                     file_name=f"executive_summary_{datetime.now().strftime('%Y%m%d')}.txt",
                     mime="text/plain",
                     key="download_exec"
@@ -81,21 +101,27 @@ with tab1:
             col1, col2, col3 = st.columns([2, 2, 1])
             
             with col1:
+                rooms_count = occupancy_data['room'].nunique() if 'room' in occupancy_data.columns else len(occupancy_data)
                 st.markdown(f"""
                 **Análisis Detallado**
                 - Período: Últimos 7 días
-                - Habitaciones: {len(occupancy_data['room'].unique())}
-                - Total noches: {len(occupancy_data)}
+                - Habitaciones: {rooms_count}
+                - Total registros: {len(occupancy_data)}
                 """)
             
             with col2:
-                max_occ = occupancy_data['occupancy_pct'].max() / 100 if len(occupancy_data) > 0 else 0
-                min_occ = occupancy_data['occupancy_pct'].min() / 100 if len(occupancy_data) > 0 else 0
+                if 'occupancy_pct' in occupancy_data.columns:
+                    max_occ = occupancy_data['occupancy_pct'].max()
+                    min_occ = occupancy_data['occupancy_pct'].min()
+                else:
+                    max_occ = 0
+                    min_occ = 0
+                
                 st.markdown(f"""
                 **Estadísticas**
-                - Máxima ocupación: {max_occ*100:.1f}%
-                - Mínima ocupación: {min_occ*100:.1f}%
-                - Variación: {(max_occ - min_occ)*100:.1f}%
+                - Máxima ocupación: {max_occ:.1f}%
+                - Mínima ocupación: {min_occ:.1f}%
+                - Variación: {(max_occ - min_occ):.1f}%
                 """)
             
             with col3:
