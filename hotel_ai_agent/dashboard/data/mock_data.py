@@ -51,12 +51,11 @@ class MockDataGenerator:
         """Get daily occupancy summary."""
         occupancy_data = self.get_7day_occupancy()
         summary = occupancy_data.groupby('date').agg({
-            'occupied': 'sum',
-            'occupancy_pct': 'mean'
+            'occupied': 'sum'
         }).reset_index()
         summary['total_rooms'] = len(self.rooms)
         summary['free_rooms'] = summary['total_rooms'] - summary['occupied']
-        summary['occupancy_pct'] = summary['occupancy_pct']
+        summary['occupancy_pct'] = (summary['occupied'] / summary['total_rooms']) * 100
         summary['date'] = pd.to_datetime(summary['date'])
         return summary
     
