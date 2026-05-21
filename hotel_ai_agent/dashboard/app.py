@@ -145,7 +145,8 @@ def _get_query_param(name: str, default: str = "") -> str:
     return str(value)
 
 embed_value = _get_query_param("embed", "")
-embed_mode = embed_value.lower() in {"1", "true", "yes"}
+page_value = _get_query_param("page", "").strip().lower()
+embed_mode = embed_value.lower() in {"1", "true", "yes"} or page_value in PAGE_MAP
 
 if embed_mode:
     st.markdown("""
@@ -166,7 +167,7 @@ if embed_mode:
     """, unsafe_allow_html=True)
 
 if embed_mode:
-    selected_page_key = _get_query_param("page", "home").strip().lower()
+    selected_page_key = page_value if page_value in PAGE_MAP else "home"
     if selected_page_key not in PAGE_MAP:
         selected_page_key = "home"
     selected_page_label = PAGE_MAP[selected_page_key][0]
