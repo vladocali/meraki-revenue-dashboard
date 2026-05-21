@@ -126,98 +126,127 @@ def initialize_app():
 # Initialize
 app_state = initialize_app()
 
-# Sidebar
-with st.sidebar:
+PAGE_MAP = {
+    "home": ("🏠 Home", "pages/01_home.py"),
+    "ocupacion": ("📅 Ocupación", "pages/02_ocupacion.py"),
+    "precios": ("💰 Precios", "pages/03_precios.py"),
+    "competencia": ("🎯 Competencia", "pages/04_competencia.py"),
+    "reportes": ("📑 Reportes", "pages/05_reportes.py"),
+}
+
+def _get_query_param(name: str, default: str = "") -> str:
+    try:
+        value = st.query_params.get(name, default)
+    except Exception:
+        legacy = st.experimental_get_query_params().get(name, [default])
+        value = legacy[0] if isinstance(legacy, list) and legacy else default
+    if isinstance(value, list):
+        value = value[0] if value else default
+    return str(value)
+
+embed_value = _get_query_param("embed", "")
+embed_mode = embed_value.lower() in {"1", "true", "yes"}
+
+if embed_mode:
     st.markdown("""
-    <div style='text-align: center; padding: 20px;'>
-        <h1 style='font-size: 2.5em;'>🏨</h1>
-        <h2>Revenue AI</h2>
-        <p style='color: #666; font-size: 0.9em;'>Management Dashboard</p>
-    </div>
+    <style>
+        [data-testid="stSidebar"] { display: none !important; }
+        [data-testid="stSidebarNav"] { display: none !important; }
+        [data-testid="stHeader"] { display: none !important; }
+        [data-testid="stToolbar"] { display: none !important; }
+        #MainMenu { visibility: hidden !important; }
+        footer { visibility: hidden !important; }
+        .block-container { padding-top: 1rem !important; }
+    </style>
     """, unsafe_allow_html=True)
-    
-    st.divider()
-    
-    st.markdown("#### 🧭 Navegación")
-    
-    pages = {
-        "🏠 Home": "pages/01_home.py",
-        "📅 Ocupación": "pages/02_ocupacion.py",
-        "💰 Precios": "pages/03_precios.py",
-        "🎯 Competencia": "pages/04_competencia.py",
-        "📑 Reportes": "pages/05_reportes.py",
-    }
-    
-    selected_page = st.radio("Seleccionar página:", list(pages.keys()), label_visibility="collapsed")
-    
-    st.divider()
-    
-    st.markdown("#### ⚡ Acciones Rápidas")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("🔄 Actualizar", key="refresh_main"):
-            st.rerun()
-    
-    with col2:
-        if st.button("⚙️ Config", key="config_main"):
-            st.info("Ir a configuración")
-    
-    st.divider()
-    
-    # Info section
-    st.markdown("#### 📊 Estado del Sistema")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Estado", "🟢 Activo")
-    with col2:
-        st.metric("Conexión BD", "✅ OK")
-    
-    st.divider()
-    
-    st.markdown("""
-    <div style='font-size: 0.85em; color: #666; text-align: center;'>
-        <p><strong>Hotel Revenue Management</strong></p>
-        <p>v1.0.0 - Powered by AI</p>
-        <p style='margin-top: 10px;'>
-            <a href='#' style='color: {COLORS["primary"]}; text-decoration: none;'>📖 Docs</a> | 
-            <a href='#' style='color: {COLORS["primary"]}; text-decoration: none;'>🐛 Report</a> | 
-            <a href='#' style='color: {COLORS["primary"]}; text-decoration: none;'>💬 Support</a>
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+
+if embed_mode:
+    selected_page_key = _get_query_param("page", "home").strip().lower()
+    if selected_page_key not in PAGE_MAP:
+        selected_page_key = "home"
+    selected_page = PAGE_MAP[selected_page_key][0]
+else:
+    # Sidebar
+    with st.sidebar:
+        st.markdown("""
+        <div style='text-align: center; padding: 20px;'>
+            <h1 style='font-size: 2.5em;'>🏨</h1>
+            <h2>Revenue AI</h2>
+            <p style='color: #666; font-size: 0.9em;'>Management Dashboard</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        st.markdown("#### 🧭 Navegación")
+
+        page_labels = [item[0] for item in PAGE_MAP.values()]
+        selected_page = st.radio("Seleccionar página:", page_labels, label_visibility="collapsed")
+        
+        st.divider()
+        
+        st.markdown("#### ⚡ Acciones Rápidas")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔄 Actualizar", key="refresh_main"):
+                st.rerun()
+        
+        with col2:
+            if st.button("⚙️ Config", key="config_main"):
+                st.info("Ir a configuración")
+        
+        st.divider()
+        
+        # Info section
+        st.markdown("#### 📊 Estado del Sistema")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Estado", "🟢 Activo")
+        with col2:
+            st.metric("Conexión BD", "✅ OK")
+        
+        st.divider()
+        
+        st.markdown("""
+        <div style='font-size: 0.85em; color: #666; text-align: center;'>
+            <p><strong>Hotel Revenue Management</strong></p>
+            <p>v1.0.0 - Powered by AI</p>
+            <p style='margin-top: 10px;'>
+                <a href='#' style='color: {COLORS["primary"]}; text-decoration: none;'>📖 Docs</a> | 
+                <a href='#' style='color: {COLORS["primary"]}; text-decoration: none;'>🐛 Report</a> | 
+                <a href='#' style='color: {COLORS["primary"]}; text-decoration: none;'>💬 Support</a>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    selected_page_key = None
+    for key, (label, _) in PAGE_MAP.items():
+        if label == selected_page:
+            selected_page_key = key
+            break
+    if selected_page_key is None:
+        selected_page_key = "home"
 
 # Main content
-if selected_page == "🏠 Home":
-    exec(open(dashboard_path / "pages/01_home.py").read())
+selected_page_file = PAGE_MAP[selected_page_key][1]
+exec(open(dashboard_path / selected_page_file).read())
 
-elif selected_page == "📅 Ocupación":
-    exec(open(dashboard_path / "pages/02_ocupacion.py").read())
+if not embed_mode:
+    st.divider()
 
-elif selected_page == "💰 Precios":
-    exec(open(dashboard_path / "pages/03_precios.py").read())
+    footer_col1, footer_col2, footer_col3 = st.columns(3)
 
-elif selected_page == "🎯 Competencia":
-    exec(open(dashboard_path / "pages/04_competencia.py").read())
+    with footer_col1:
+        st.markdown(f"**Última actualización:** {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
 
-elif selected_page == "📑 Reportes":
-    exec(open(dashboard_path / "pages/05_reportes.py").read())
+    with footer_col2:
+        st.markdown("**Sistema:** Revenue Management AI")
 
-# Footer
-st.divider()
-
-footer_col1, footer_col2, footer_col3 = st.columns(3)
-
-with footer_col1:
-    st.markdown(f"**Última actualización:** {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-
-with footer_col2:
-    st.markdown("**Sistema:** Revenue Management AI")
-
-with footer_col3:
-    st.markdown("**Versión:** 1.0.0 • Beta")
+    with footer_col3:
+        st.markdown("**Versión:** 1.0.0 • Beta")
 
 # Log dashboard access
 dashboard_logger.info(f"Dashboard accessed - User viewed {selected_page}")
