@@ -401,6 +401,18 @@ class DashboardDatabase:
             """
             
             result = self.execute_query(query)
+            if result.empty:
+                fallback_query = """
+                SELECT
+                    source,
+                    nightly_price,
+                    captured_at,
+                    room_type
+                FROM competitor_price_snapshots
+                ORDER BY captured_at DESC
+                LIMIT 300
+                """
+                result = self.execute_query(fallback_query)
             dashboard_logger.info(f"Retrieved competitor prices: {len(result)} records")
             return result
         

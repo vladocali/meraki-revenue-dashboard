@@ -10,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dashboard.config import COLORS
 from dashboard.components.charts import create_competitor_comparison_chart
-from dashboard.data.mock_data import get_mock_data
 from dashboard.services.dashboard_db import get_dashboard_db
 from dashboard.utils.formatters import format_currency
 from dashboard.utils.logger import dashboard_logger
@@ -40,11 +39,10 @@ def load_competitor_data():
                 real_data['platform'] = real_data['source'].astype(str).str.title()
                 real_data['date'] = pd.to_datetime(real_data['captured_at']).dt.date
                 return real_data
-
-        return _to_dataframe(get_mock_data('competitor'))
+        return pd.DataFrame()
     except Exception as e:
         dashboard_logger.error(f"Error loading competitor data: {e}")
-        return _to_dataframe(get_mock_data('competitor'))
+        return pd.DataFrame()
 
 competitor_data = load_competitor_data()
 current_prices = pd.DataFrame()
@@ -56,10 +54,23 @@ except Exception:
     current_prices = pd.DataFrame()
 
 if current_prices.empty:
-    current_prices = _to_dataframe(get_mock_data('current_prices'))
+    current_prices = pd.DataFrame()
 
 if competitor_data is not None and not competitor_data.empty:
-    st.caption("📊 Datos reales" if 'source' in competitor_data.columns and not competitor_data.empty and 'captured_at' in competitor_data.columns else "📊 Datos demo")
+    st.caption("📊 Datos reales")
+
+    latest_capture = pd.to_datetime(competitor_data['captured_at']).max() if 'captured_at' in competitor_data.columns else None
+    total_sources = competitor_data['platform'].nunique() if 'platform' in competitor_data.columns else 0
+
+    info1, info2, info3 = st.columns(3)
+    with info1:
+        st.metric("Registros competencia", int(len(competitor_data)))
+    with info2:
+        st.metric("Fuentes detectadas", int(total_sources))
+    with info3:
+        st.metric("Última captura", latest_capture.strftime('%d/%m %H:%M') if pd.notna(latest_capture) else "N/A")
+
+    st.markdown("---")
 
     # Get average price
     my_avg_price = current_prices['current_price'].mean() if not current_prices.empty and 'current_price' in current_prices.columns else 200000
@@ -154,4 +165,4 @@ if competitor_data is not None and not competitor_data.empty:
     st.dataframe(competitor_summary, use_container_width=True, hide_index=True)
     
 else:
-    st.warning("No hay datos de competencia disponibles")
+    st.warning("No hay datos de competencia en la base de datos todavía. Ejecuta el recolector para poblar la tabla competitor_price_snapshots.")
