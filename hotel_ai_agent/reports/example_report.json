@@ -1,0 +1,46 @@
+{
+  "generated_at": "2026-05-21T02:00:03",
+  "mode": "SUGGESTION",
+  "executive_summary": "La ocupación esperada presenta ventanas de baja demanda a mitad de semana y presión alta en fin de semana. Se recomiendan ajustes graduales por habitación respetando límites mínimos y máximos para proteger margen sin perder competitividad.",
+  "occupancy": [
+    {
+      "date": "2026-05-21",
+      "occupied_rooms": 3,
+      "total_rooms": 9,
+      "occupancy_pct": 33.33,
+      "demand_flag": "BAJA"
+    },
+    {
+      "date": "2026-05-22",
+      "occupied_rooms": 8,
+      "total_rooms": 9,
+      "occupancy_pct": 88.89,
+      "demand_flag": "ALTA"
+    }
+  ],
+  "current_prices": [
+    {
+      "room_name": "203",
+      "price_luvi": 100000,
+      "price_weekend": 130000,
+      "price_high": 150000,
+      "reference_price": 108571.43
+    }
+  ],
+  "suggestions": [
+    {
+      "room_name": "203",
+      "target_date": "2026-05-22",
+      "action": "SUBIR",
+      "current_price": 108571,
+      "suggested_price": 128114,
+      "adjustment_pct": 18.0,
+      "occupancy_pct": 88.89,
+      "competitor_avg": 115000,
+      "reason": "Acción=SUBIR. Ocupación=88.89% | Competencia promedio=115,000 | Ajuste=18.0% | Límites [92,286, 130,285]",
+      "min_price": 92286,
+      "max_price": 130285
+    }
+  ],
+  "note": "NO se ejecutan UPDATE automáticos."
+}

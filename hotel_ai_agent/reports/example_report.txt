@@ -1,0 +1,21 @@
+REPORTE DIARIO - REVENUE MANAGEMENT (MODO SUGERENCIA)
+======================================================================
+Fecha: 2026-05-21T02:00:03
+
+RESUMEN EJECUTIVO
+----------------------------------------------------------------------
+La ocupación esperada presenta ventanas de baja demanda y picos de alta demanda en fin de semana.
+
+OCUPACIÓN PRÓXIMOS 7 DÍAS
+----------------------------------------------------------------------
+2026-05-21: 3/9 (33.33%)
+2026-05-22: 8/9 (88.89%)
+
+SUGERENCIAS DE CAMBIO
+----------------------------------------------------------------------
+Hab 203 | 2026-05-22 | SUBIR | Actual 108571 -> Sugerido 128114
+  Motivo: Acción=SUBIR. Ocupación=88.89% | Competencia promedio=115,000 | Ajuste=18.0%
+
+NOTA DE SEGURIDAD
+----------------------------------------------------------------------
+NO se ejecutaron UPDATE de precios. Solo análisis y sugerencias.
