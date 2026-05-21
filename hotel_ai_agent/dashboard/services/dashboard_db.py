@@ -133,7 +133,11 @@ class DashboardDatabase:
             SELECT 
                 h.nombre AS room,
                 h.id_habitacion AS room_id,
-                ROUND(AVG(d.Valor) / NULLIF(DATEDIFF(d.CheckOut, d.CheckIn), 0), 0) AS current_price,
+                ROUND(
+                    SUM(CASE WHEN DATEDIFF(d.CheckOut, d.CheckIn) > 0 THEN d.Valor ELSE 0 END)
+                    / NULLIF(SUM(CASE WHEN DATEDIFF(d.CheckOut, d.CheckIn) > 0 THEN DATEDIFF(d.CheckOut, d.CheckIn) ELSE 0 END), 0),
+                    0
+                ) AS current_price,
                 COUNT(*) AS recent_stays,
                 MAX(d.CheckIn) AS last_booking,
                 MIN(d.Valor) AS min_price,
@@ -212,7 +216,11 @@ class DashboardDatabase:
         try:
             query = f"""
             SELECT 
-                ROUND(AVG(d.Valor) / NULLIF(DATEDIFF(d.CheckOut, d.CheckIn), 0), 0) AS adr
+                ROUND(
+                    SUM(CASE WHEN DATEDIFF(d.CheckOut, d.CheckIn) > 0 THEN d.Valor ELSE 0 END)
+                    / NULLIF(SUM(CASE WHEN DATEDIFF(d.CheckOut, d.CheckIn) > 0 THEN DATEDIFF(d.CheckOut, d.CheckIn) ELSE 0 END), 0),
+                    0
+                ) AS adr
             FROM datos d
             WHERE d.CheckIn >= DATE_SUB(CURDATE(), INTERVAL {days} DAY)
             AND d.EstadoOperacion NOT IN ('Cancelada', 'No show')
