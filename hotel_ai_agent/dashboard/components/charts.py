@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
-from dashboard.config import COLORS, CHART_CONFIG
+from dashboard.config import COLORS
 
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
     """Convert #RRGGBB color to rgba(r,g,b,a) string compatible with Plotly."""
@@ -40,7 +40,6 @@ def create_occupancy_line_chart(data: pd.DataFrame):
         template='plotly_white',
         height=400,
         margin=dict(l=0, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     fig.update_yaxes(range=[0, 100])
@@ -75,7 +74,6 @@ def create_occupancy_bar_chart(data: pd.DataFrame):
         template='plotly_white',
         height=400,
         margin=dict(l=0, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     return fig
@@ -107,7 +105,6 @@ def create_price_comparison_chart(current_prices: pd.DataFrame):
         template='plotly_white',
         height=350,
         margin=dict(l=150, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     return fig
@@ -161,7 +158,6 @@ def create_revenue_forecast_chart(data: dict):
         template='plotly_white',
         height=400,
         margin=dict(l=0, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     return fig
@@ -203,7 +199,6 @@ def create_competitor_comparison_chart(competitor_data: pd.DataFrame, my_price: 
         template='plotly_white',
         height=400,
         margin=dict(l=150, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     return fig
@@ -237,7 +232,6 @@ def create_price_history_chart(history: pd.DataFrame):
         template='plotly_white',
         height=350,
         margin=dict(l=0, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     return fig
@@ -270,7 +264,6 @@ def create_occupancy_heatmap(occupancy_data: pd.DataFrame):
         yaxis_title='Habitación',
         height=400,
         margin=dict(l=150, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     return fig
@@ -295,7 +288,6 @@ def create_revenue_breakdown_pie(demographics: dict):
         title='Ingresos por Fuente (7 días)',
         height=400,
         margin=dict(l=0, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     return fig
@@ -329,7 +321,6 @@ def create_adr_trend_chart(metric_history: list):
         template='plotly_white',
         height=350,
         margin=dict(l=0, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     return fig
@@ -362,7 +353,6 @@ def create_suggestion_impact_chart(suggestions: pd.DataFrame):
         template='plotly_white',
         height=350,
         margin=dict(l=150, r=0, t=40, b=0),
-        **CHART_CONFIG,
     )
     
     return fig
