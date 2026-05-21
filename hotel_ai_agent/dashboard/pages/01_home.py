@@ -163,29 +163,25 @@ def render_kpi_row():
     with col1:
         st.metric(
             label="📊 Ocupación Promedio (7d)",
-            value=f"{avg_occ_pct:.1f}%",
-            delta=format_occupancy_status(avg_occ_pct)
+            value=f"{avg_occ_pct:.1f}%"
         )
     
     with col2:
         st.metric(
             label="💰 ADR (Tarifa Promedio)",
-            value=format_currency(adr),
-            delta=f"${adr:,.0f}"
+            value=format_currency(adr)
         )
     
     with col3:
         st.metric(
             label="📈 RevPAR",
-            value=format_currency(revpar),
-            delta=f"${revpar:,.0f}"
+            value=format_currency(revpar)
         )
     
     with col4:
         st.metric(
             label="💵 Ingresos Últimos 7d",
-            value=format_currency(revenue_7d),
-            delta=f"COP {revenue_7d:,.0f}"
+            value=format_currency(revenue_7d)
         )
 
 def render_charts():

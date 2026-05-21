@@ -59,7 +59,7 @@ if competitor_data is not None and not competitor_data.empty:
     with col4:
         my_avg = current_prices['current_price'].mean()
         diff_pct = ((my_avg - comp_avg) / comp_avg * 100) if comp_avg > 0 else 0
-        st.metric("Diferencia vs Promedio", f"{diff_pct:+.1f}%", delta=format_currency(my_avg - comp_avg))
+        st.metric("Diferencia vs Promedio", f"{diff_pct:+.1f}%")
     
     st.markdown("---")
     
