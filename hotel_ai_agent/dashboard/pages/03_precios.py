@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dashboard.config import COLORS
 from dashboard.components.charts import create_price_comparison_chart, create_suggestion_impact_chart
-from dashboard.data.mock_data import get_mock_data
 from dashboard.services.dashboard_db import get_dashboard_db
 from dashboard.utils.formatters import format_currency, format_percentage
 from dashboard.utils.logger import dashboard_logger
@@ -52,12 +51,10 @@ with tab1:
                     })
                     prices['price_change_pct'] = 0  # Not calculated yet
                     return prices
-            
-            # Fallback to mock
-            return _to_dataframe(get_mock_data('current_prices'))
+            return pd.DataFrame()
         except Exception as e:
             dashboard_logger.error(f"Error loading current prices: {e}")
-            return _to_dataframe(get_mock_data('current_prices'))
+            return pd.DataFrame()
     
     current_prices = load_current_prices()
     
@@ -109,12 +106,10 @@ with tab2:
                             'estimated_impact': 0,
                         })
                     return pd.DataFrame(suggestions)
-            
-            # Fallback to mock
-            return _to_dataframe(get_mock_data('suggestions'))
+            return pd.DataFrame()
         except Exception as e:
             dashboard_logger.error(f"Error loading suggestions: {e}")
-            return _to_dataframe(get_mock_data('suggestions'))
+            return pd.DataFrame()
     
     suggestions = load_suggestions()
     
@@ -196,8 +191,12 @@ with tab3:
     @st.cache_data(ttl=300)
     def load_rooms():
         try:
-            current_prices = _to_dataframe(get_mock_data('current_prices'))
-            return current_prices['room'].tolist()
+            db = get_dashboard_db()
+            if db.is_available():
+                current_prices = db.get_current_room_prices()
+                if not current_prices.empty and 'room' in current_prices.columns:
+                    return current_prices['room'].astype(str).tolist()
+            return []
         except:
             return []
     
@@ -208,10 +207,13 @@ with tab3:
         @st.cache_data(ttl=300)
         def load_price_history(room):
             try:
-                history = _to_dataframe(get_mock_data('price_history'))
-                return history[history['room'] == room] if isinstance(history, pd.DataFrame) else None
+                db = get_dashboard_db()
+                if db.is_available():
+                    history = db.get_price_history(room=room, days=30)
+                    return history if isinstance(history, pd.DataFrame) else pd.DataFrame()
+                return pd.DataFrame()
             except:
-                return None
+                return pd.DataFrame()
         
         history = load_price_history(selected_room)
         

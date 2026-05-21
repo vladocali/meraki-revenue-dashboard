@@ -21,7 +21,7 @@ st.markdown("---")
 @st.cache_data(ttl=300)
 def load_occupancy_data():
     try:
-        source = 'mock'
+        source = 'db'
         occupancy_7d = pd.DataFrame()
         daily_summary = pd.DataFrame()
 
@@ -32,18 +32,14 @@ def load_occupancy_data():
             if not occupancy_7d.empty and not daily_summary.empty:
                 source = 'db'
 
-        if occupancy_7d.empty or daily_summary.empty:
-            occupancy_7d = get_mock_data('occupancy_7d')
-            daily_summary = get_mock_data('daily_summary')
-
         return occupancy_7d, daily_summary, source
     except Exception as e:
         dashboard_logger.error(f"Error loading occupancy data: {e}")
-        return None, None, 'mock'
+        return pd.DataFrame(), pd.DataFrame(), 'unavailable'
 
 occupancy_7d, daily_summary, occupancy_source = load_occupancy_data()
 
-if occupancy_7d is not None and daily_summary is not None:
+if occupancy_7d is not None and daily_summary is not None and not occupancy_7d.empty and not daily_summary.empty:
     st.caption("Datos reales" if occupancy_source == 'db' else "Datos demo")
 
     # KPI Row
@@ -112,4 +108,4 @@ if occupancy_7d is not None and daily_summary is not None:
     st.dataframe(room_detail, use_container_width=True, hide_index=True)
     
 else:
-    st.error("Error loading occupancy data")
+    st.warning("No hay datos reales de ocupación disponibles en este momento")

@@ -10,7 +10,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dashboard.data.mock_data import get_mock_data
 from dashboard.services.analytics_service import AnalyticsService
 from dashboard.services.ai_insights import get_ai_service
 from dashboard.services.dashboard_db import get_dashboard_db
@@ -39,27 +38,26 @@ with tab1:
     def load_report_data():
         try:
             db = get_dashboard_db()
-            
             if db.is_available():
                 occupancy = db.get_daily_occupancy_summary()
-                if occupancy.empty:
-                    occupancy = _to_dataframe(get_mock_data('daily_summary'))
+                revenue_7d = db.get_revenue_7d()
+                adr = db.get_adr()
+                revpar = db.get_revpar()
+                competitor_snapshots = db.get_competitor_prices(days=7)
             else:
-                occupancy = _to_dataframe(get_mock_data('daily_summary'))
-            
-            # Get real metrics
-            revenue_7d = db.get_revenue_7d() if db.is_available() else {}
-            adr = db.get_adr() if db.is_available() else 0
-            revpar = db.get_revpar() if db.is_available() else 0
-            competitor_snapshots = db.get_competitor_prices(days=7) if db.is_available() else pd.DataFrame()
+                occupancy = pd.DataFrame()
+                revenue_7d = {}
+                adr = 0
+                revpar = 0
+                competitor_snapshots = pd.DataFrame()
             
             metrics = {
-                'adr': adr or get_mock_data('revenue')['adr'],
-                'revpar': revpar or get_mock_data('revenue')['revpar'],
-                'revenue_7d': revenue_7d.get('total', 0) or get_mock_data('revenue')['revenue_7d'],
+                'adr': adr,
+                'revpar': revpar,
+                'revenue_7d': revenue_7d.get('total', 0) if isinstance(revenue_7d, dict) else 0,
             }
             
-            suggestions = _to_dataframe(get_mock_data('suggestions'))
+            suggestions = pd.DataFrame()
             if not competitor_snapshots.empty:
                 suggestions = suggestions.copy()
                 suggestions['competitor_price'] = competitor_snapshots['nightly_price'].mean()
@@ -67,7 +65,7 @@ with tab1:
             return occupancy, metrics, suggestions
         except Exception as e:
             dashboard_logger.error(f"Error loading report data: {e}")
-            return _to_dataframe(get_mock_data('daily_summary')), get_mock_data('revenue'), _to_dataframe(get_mock_data('suggestions'))
+            return pd.DataFrame(), {}, pd.DataFrame()
     
     occupancy_data, metrics, suggestions = load_report_data()
     
@@ -195,10 +193,9 @@ with tab2:
     if occupancy_data is not None and not occupancy_data.empty:
         # Calculate analytics
         avg_occ = occupancy_data['occupancy_pct'].mean() / 100 if len(occupancy_data) > 0 else 0
-        competitor_data = _to_dataframe(get_mock_data('competitor'))
-        db_competitor = get_dashboard_db().get_competitor_prices(days=7) if get_dashboard_db().is_available() else pd.DataFrame()
-        if not db_competitor.empty:
-            competitor_data = db_competitor.copy()
+        competitor_data = get_dashboard_db().get_competitor_prices(days=7) if get_dashboard_db().is_available() else pd.DataFrame()
+        if not competitor_data.empty:
+            competitor_data = competitor_data.copy()
             competitor_data['competitor'] = competitor_data['source'].astype(str).str.title()
             competitor_data['platform'] = competitor_data['source'].astype(str).str.title()
         comp_avg_price = competitor_data['nightly_price'].mean() if not competitor_data.empty else 0
@@ -235,7 +232,7 @@ with tab2:
         with st.spinner("Generando resumen..."):
             executive_summary = ai_service.generate_executive_summary(
                 metrics=metrics,
-                opportunities=get_mock_data('alerts'),
+                opportunities=[],
                 alerts=[]
             )
             st.markdown(executive_summary)
@@ -272,19 +269,19 @@ with tab3:
         
         try:
             if export_occupancy:
-                export_data['occupancy'] = _to_dataframe(get_mock_data('daily_summary')).to_dict('records')
+                export_data['occupancy'] = occupancy_data.to_dict('records') if 'occupancy_data' in locals() and isinstance(occupancy_data, pd.DataFrame) else []
             
             if export_prices:
-                export_data['prices'] = _to_dataframe(get_mock_data('current_prices')).to_dict('records')
+                export_data['prices'] = []
             
             if export_suggestions:
-                export_data['suggestions'] = _to_dataframe(get_mock_data('suggestions')).to_dict('records')
+                export_data['suggestions'] = suggestions.to_dict('records') if isinstance(suggestions, pd.DataFrame) else []
             
             if export_competitor:
-                export_data['competitor'] = _to_dataframe(get_mock_data('competitor')).to_dict('records')
+                export_data['competitor'] = competitor_data.to_dict('records') if isinstance(competitor_data, pd.DataFrame) else []
             
             if export_demographics:
-                export_data['demographics'] = get_mock_data('demographics')
+                export_data['demographics'] = {}
             
             if format_option == "JSON":
                 json_data = json.dumps(export_data, indent=2, default=str)

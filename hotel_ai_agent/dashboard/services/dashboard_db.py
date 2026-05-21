@@ -39,11 +39,11 @@ class DashboardDatabase:
             return pd.DataFrame()
 
     def get_active_rooms(self) -> pd.DataFrame:
-        """Get list of active rooms from Meraki."""
+        """Get list of hotel rooms from Meraki."""
         query = """
         SELECT nombre AS room
         FROM habitaciones
-        WHERE activa = 1
+        WHERE TRIM(COALESCE(nombre, '')) <> ''
         ORDER BY CAST(nombre AS UNSIGNED), nombre
         """
         return self.execute_query(query)
@@ -146,7 +146,7 @@ class DashboardDatabase:
             LEFT JOIN datos d ON TRIM(d.Habitacion) = h.nombre 
                 AND d.CheckIn >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
                 AND d.EstadoOperacion NOT IN ('Cancelada', 'No show')
-            WHERE h.activa = 1
+            WHERE TRIM(COALESCE(h.nombre, '')) <> ''
             GROUP BY h.id_habitacion, h.nombre
             ORDER BY h.nombre
             """
@@ -297,7 +297,7 @@ class DashboardDatabase:
             LEFT JOIN datos d ON TRIM(d.Habitacion) = h.nombre
                 AND d.CheckIn >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)
                 AND d.EstadoOperacion NOT IN ('Cancelada', 'No show')
-            WHERE h.activa = 1
+            WHERE TRIM(COALESCE(h.nombre, '')) <> ''
             GROUP BY room_type
             """
             

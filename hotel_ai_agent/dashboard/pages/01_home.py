@@ -40,9 +40,9 @@ def load_data():
         # Initialize with defaults
         data = {
             'occupancy_data': pd.DataFrame(),
-            'occupancy_source': 'mock',
+            'occupancy_source': 'real' if db.is_available() else 'unavailable',
             'metrics': {},
-            'suggestions': [],
+            'suggestions': pd.DataFrame(),
             'alerts': [],
             'price_history': pd.DataFrame(),
         }
@@ -87,22 +87,7 @@ def load_data():
             alerts = db.get_alerts()
             data['alerts'] = alerts if alerts else []
         
-        # Fallback to mock if database not available or missing data
-        if data['occupancy_data'].empty:
-            data['occupancy_data'] = get_mock_data('daily_summary')
-            data['occupancy_source'] = 'mock'
-        
-        if not data['metrics']:
-            mock_revenue = get_mock_data('revenue')
-            data['metrics'] = mock_revenue
-        
-        if not data['alerts']:
-            data['alerts'] = get_mock_data('alerts')
-        
-        if data['price_history'].empty:
-            data['price_history'] = get_mock_data('price_history')
-        
-        # Suggestions (can combine real+mock)
+        # Suggestions (real only)
         try:
             current_prices = db.get_current_room_prices() if db.is_available() else pd.DataFrame()
             if not current_prices.empty:
@@ -118,22 +103,41 @@ def load_data():
                 data['suggestions'] = pd.DataFrame(suggestions[:5])  # Top 5
         except:
             pass
-        
-        if not data['suggestions']:
-            data['suggestions'] = get_mock_data('suggestions')
+
+        if not data['metrics']:
+            data['metrics'] = {
+                'occupancy_7d': 0,
+                'adr': 0,
+                'revpar': 0,
+                'revenue_7d': 0,
+                'revenue_7d_stays': 0,
+                'revenue_7d_consumptions': 0,
+                'daily_potential': 0,
+                'daily_actual': 0,
+                'lost_revenue_daily': 0,
+            }
         
         return data
     
     except Exception as e:
         dashboard_logger.error(f"Error loading dashboard data: {e}")
-        # Return mock data as fallback
         return {
-            'occupancy_data': get_mock_data('daily_summary'),
-            'occupancy_source': 'mock',
-            'metrics': get_mock_data('revenue'),
-            'suggestions': get_mock_data('suggestions'),
-            'alerts': get_mock_data('alerts'),
-            'price_history': get_mock_data('price_history'),
+            'occupancy_data': pd.DataFrame(),
+            'occupancy_source': 'unavailable',
+            'metrics': {
+                'occupancy_7d': 0,
+                'adr': 0,
+                'revpar': 0,
+                'revenue_7d': 0,
+                'revenue_7d_stays': 0,
+                'revenue_7d_consumptions': 0,
+                'daily_potential': 0,
+                'daily_actual': 0,
+                'lost_revenue_daily': 0,
+            },
+            'suggestions': pd.DataFrame(),
+            'alerts': [],
+            'price_history': pd.DataFrame(),
         }
 
 def render_kpi_row():

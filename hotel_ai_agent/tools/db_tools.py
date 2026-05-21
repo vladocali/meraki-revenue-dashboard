@@ -95,7 +95,7 @@ class Database:
         sql = """
         SELECT nombre AS room_name
         FROM habitaciones
-        WHERE activa = 1
+        WHERE TRIM(COALESCE(nombre, '')) <> ''
         ORDER BY nombre
         """
         return self.execute_query(sql)

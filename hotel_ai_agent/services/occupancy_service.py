@@ -18,7 +18,7 @@ class OccupancyService:
         start = start_date or date.today()
         end = start + timedelta(days=6)
 
-        total_rooms_df = self.db.execute_query("SELECT COUNT(*) AS total_rooms FROM habitaciones WHERE activa = 1")
+        total_rooms_df = self.db.execute_query("SELECT COUNT(*) AS total_rooms FROM habitaciones WHERE TRIM(COALESCE(nombre, '')) <> ''")
         total_rooms = int(total_rooms_df.iloc[0]["total_rooms"]) if not total_rooms_df.empty else 0
 
         sql = """
