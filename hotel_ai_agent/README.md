@@ -369,6 +369,16 @@ WHERE captured_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
 GROUP BY source;
 ```
 
+### URLs de competencia
+
+Para que el recolector genere datos reales, configura `COMPETITOR_URLS` con páginas públicas que muestren precio visible. Ejemplos:
+
+```env
+COMPETITOR_URLS=https://www.booking.com/searchresults.es.html?ss=Cali%2C%20Colombia,https://www.airbnb.com/s/Cali--Valle-del-Cauca--Colombia/homes
+```
+
+Lo ideal es usar URLs de anuncios concretos o páginas de búsqueda con precios visibles.
+
 ## 🔐 Seguridad e IA
 
 ### Modo Sugerencia (Actual)

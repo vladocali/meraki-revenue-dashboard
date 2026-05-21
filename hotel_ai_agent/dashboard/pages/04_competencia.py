@@ -72,6 +72,14 @@ if competitor_data is not None and not competitor_data.empty:
 
     st.markdown("---")
 
+    st.subheader("📦 Capturas crudas de competencia")
+    raw_preview = competitor_data.copy()
+    raw_preview['captured_at'] = pd.to_datetime(raw_preview['captured_at']).dt.strftime('%d/%m/%Y %H:%M') if 'captured_at' in raw_preview.columns else '-'
+    preview_cols = [c for c in ['captured_at', 'source', 'competitor', 'platform', 'nightly_price', 'room_type'] if c in raw_preview.columns]
+    st.dataframe(raw_preview[preview_cols].head(50), use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
     # Get average price
     my_avg_price = current_prices['current_price'].mean() if not current_prices.empty and 'current_price' in current_prices.columns else 200000
     
@@ -165,4 +173,7 @@ if competitor_data is not None and not competitor_data.empty:
     st.dataframe(competitor_summary, use_container_width=True, hide_index=True)
     
 else:
-    st.warning("No hay datos de competencia en la base de datos todavía. Ejecuta el recolector para poblar la tabla competitor_price_snapshots.")
+    st.warning("No hay datos de competencia en la base de datos todavía.")
+    st.info(
+        "Para que aparezcan datos reales debes configurar COMPETITOR_URLS en .env y ejecutar el recolector con --competitor-now o --competitor-scheduler."
+    )
