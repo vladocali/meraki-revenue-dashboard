@@ -6,6 +6,16 @@ import pandas as pd
 import numpy as np
 from dashboard.config import COLORS, CHART_CONFIG
 
+def hex_to_rgba(hex_color: str, alpha: float) -> str:
+    """Convert #RRGGBB color to rgba(r,g,b,a) string compatible with Plotly."""
+    color = (hex_color or "").strip().lstrip('#')
+    if len(color) != 6:
+        return f"rgba(0, 0, 0, {alpha})"
+    red = int(color[0:2], 16)
+    green = int(color[2:4], 16)
+    blue = int(color[4:6], 16)
+    return f"rgba({red}, {green}, {blue}, {alpha})"
+
 def create_occupancy_line_chart(data: pd.DataFrame):
     """Create occupancy trend line chart."""
     
@@ -19,7 +29,7 @@ def create_occupancy_line_chart(data: pd.DataFrame):
         line=dict(color=COLORS['primary'], width=3),
         marker=dict(size=8),
         fill='tozeroy',
-        fillcolor=f"{COLORS['primary']}30",
+        fillcolor=hex_to_rgba(COLORS['primary'], 0.19),
     ))
     
     fig.update_layout(
@@ -132,7 +142,7 @@ def create_revenue_forecast_chart(data: dict):
         line=dict(color=COLORS['success'], width=3),
         marker=dict(size=10),
         fill='tozeroy',
-        fillcolor=f"{COLORS['success']}20",
+        fillcolor=hex_to_rgba(COLORS['success'], 0.12),
     ))
     
     fig.add_trace(go.Scatter(
@@ -211,7 +221,7 @@ def create_price_history_chart(history: pd.DataFrame):
         line=dict(color=COLORS['accent'], width=2),
         marker=dict(size=6),
         fill='tozeroy',
-        fillcolor=f"{COLORS['accent']}20",
+        fillcolor=hex_to_rgba(COLORS['accent'], 0.12),
     ))
     
     # Add average line
@@ -308,7 +318,7 @@ def create_adr_trend_chart(metric_history: list):
         text=adrs,
         textposition='top center',
         fill='tozeroy',
-        fillcolor=f"{COLORS['secondary']}20",
+        fillcolor=hex_to_rgba(COLORS['secondary'], 0.12),
     ))
     
     fig.update_layout(
