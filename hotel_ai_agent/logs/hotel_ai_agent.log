@@ -1,0 +1,5 @@
+2026-05-21 18:13:54,853 | INFO | __main__ | Captura puntual de competencia iniciada (fuentes=2)
+2026-05-21 18:14:17,761 | INFO | __main__ | Captura puntual de competencia iniciada (fuentes=2)
+2026-05-21 18:14:17,861 | INFO | tools.db_tools | Tablas del agente verificadas/creadas
+2026-05-21 18:14:18,163 | INFO | tools.competitor_tools | No se detectaron precios en https://www.booking.com/searchresults.es.html?ss=Cali%2C%20Colombia
+2026-05-21 18:14:19,265 | INFO | __main__ | Captura puntual de competencia finalizada: 1 registros

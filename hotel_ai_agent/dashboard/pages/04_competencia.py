@@ -4,6 +4,7 @@ COMPETITORS PAGE - Competitor Price Analysis
 import streamlit as st
 import pandas as pd
 import sys
+import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -27,7 +28,6 @@ def _to_dataframe(value) -> pd.DataFrame:
         return pd.DataFrame([value])
     return pd.DataFrame()
 
-@st.cache_data(ttl=300)
 def load_competitor_data():
     try:
         db = get_dashboard_db()
@@ -70,7 +70,16 @@ if competitor_data is not None and not competitor_data.empty:
     with info3:
         st.metric("Última captura", latest_capture.strftime('%d/%m %H:%M') if pd.notna(latest_capture) else "N/A")
 
+    if total_sources < 2:
+        st.info("Airbnb ya está aportando datos. Booking todavía no devuelve precios con la URL actual; conviene usar una página de hotel/anuncio más específica o una URL con precios visibles.")
+
     st.markdown("---")
+
+    configured_urls = [u.strip() for u in os.getenv("COMPETITOR_URLS", "").split(",") if u.strip()]
+    if configured_urls:
+        with st.expander("Fuentes configuradas", expanded=False):
+            for url in configured_urls:
+                st.write(url)
 
     st.subheader("📦 Capturas crudas de competencia")
     raw_preview = competitor_data.copy()

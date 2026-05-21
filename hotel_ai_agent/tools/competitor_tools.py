@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import logging
 import re
+from html import unescape
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
 
 import requests
-from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +56,14 @@ def lightweight_scrape_price(url: str, timeout: int = 12) -> CompetitorListing |
         logger.warning("No fue posible consultar competidor %s: %s", url, exc)
         return None
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    title = soup.title.text.strip() if soup.title and soup.title.text else None
+    html_text = response.text or ""
+    title_match = re.search(r"<title[^>]*>(.*?)</title>", html_text, flags=re.IGNORECASE | re.DOTALL)
+    title = unescape(title_match.group(1)).strip() if title_match else None
 
-    text_content = soup.get_text(" ", strip=True)
+    text_content = re.sub(r"<script[^>]*>.*?</script>", " ", html_text, flags=re.IGNORECASE | re.DOTALL)
+    text_content = re.sub(r"<style[^>]*>.*?</style>", " ", text_content, flags=re.IGNORECASE | re.DOTALL)
+    text_content = re.sub(r"<[^>]+>", " ", text_content)
+    text_content = unescape(re.sub(r"\s+", " ", text_content)).strip()
     candidates = _extract_price_candidates(text_content)
     if not candidates:
         logger.info("No se detectaron precios en %s", url)

@@ -56,12 +56,17 @@ def _get_bool(name: str, default: bool) -> bool:
 def get_settings() -> Settings:
     competitor_urls_raw = os.getenv("COMPETITOR_URLS", "").strip()
     competitor_urls = [u.strip() for u in competitor_urls_raw.split(",") if u.strip()]
+    if not competitor_urls:
+        competitor_urls = [
+            "https://www.booking.com/searchresults.es.html?ss=Cali%2C%20Colombia",
+            "https://www.airbnb.com/s/Cali--Valle-del-Cauca--Colombia/homes",
+        ]
 
     settings = Settings(
         db_dialect=os.getenv("DB_DIALECT", "mysql+pymysql"),
         db_host=os.getenv("DB_HOST", "127.0.0.1"),
         db_port=int(os.getenv("DB_PORT", "3306")),
-        db_name=os.getenv("DB_NAME", "meraki"),
+        db_name=os.getenv("DB_NAME", "dbmeraki"),
         db_user=os.getenv("DB_USER", "root"),
         db_password=os.getenv("DB_PASSWORD", ""),
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),

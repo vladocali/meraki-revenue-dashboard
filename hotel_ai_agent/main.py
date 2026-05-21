@@ -5,9 +5,6 @@ import logging
 import time
 from datetime import datetime
 
-import schedule
-
-from agents.revenue_agent import RevenueSuggestionAgent
 from config import get_settings, setup_logging
 from services.competitor_service import CompetitorService
 from services.occupancy_service import OccupancyService
@@ -18,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 def build_agent() -> RevenueSuggestionAgent:
+    from agents.revenue_agent import RevenueSuggestionAgent
+
     settings, db, occupancy_service, pricing_service, competitor_service = build_services()
     return RevenueSuggestionAgent(
         db=db,
@@ -70,6 +69,8 @@ def run_competitor_once() -> None:
 
 
 def run_scheduler() -> None:
+    import schedule
+
     settings = get_settings()
     setup_logging(settings.log_level, settings.log_dir)
 
@@ -92,6 +93,8 @@ def run_scheduler() -> None:
 
 
 def run_competitor_scheduler() -> None:
+    import schedule
+
     settings, db, competitor_service = build_competitor_service()
 
     def _job() -> None:
