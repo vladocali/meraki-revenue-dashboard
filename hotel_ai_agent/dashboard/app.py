@@ -150,10 +150,15 @@ embed_mode = embed_value.lower() in {"1", "true", "yes"}
 if embed_mode:
     st.markdown("""
     <style>
-        [data-testid="stSidebar"] { display: none !important; }
-        [data-testid="stSidebarNav"] { display: none !important; }
-        [data-testid="stHeader"] { display: none !important; }
-        [data-testid="stToolbar"] { display: none !important; }
+        section[data-testid="stSidebar"],
+        div[data-testid="stSidebar"],
+        aside[data-testid="stSidebar"] { display: none !important; width: 0 !important; min-width: 0 !important; }
+        [data-testid="stSidebarNav"],
+        [data-testid="stSidebarNavItems"],
+        [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+        [data-testid="stHeader"],
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"] { display: none !important; }
         #MainMenu { visibility: hidden !important; }
         footer { visibility: hidden !important; }
         .block-container { padding-top: 1rem !important; }
@@ -164,7 +169,7 @@ if embed_mode:
     selected_page_key = _get_query_param("page", "home").strip().lower()
     if selected_page_key not in PAGE_MAP:
         selected_page_key = "home"
-    selected_page = PAGE_MAP[selected_page_key][0]
+    selected_page_label = PAGE_MAP[selected_page_key][0]
 else:
     # Sidebar
     with st.sidebar:
@@ -229,6 +234,7 @@ else:
             break
     if selected_page_key is None:
         selected_page_key = "home"
+    selected_page_label = PAGE_MAP[selected_page_key][0]
 
 # Main content
 selected_page_file = PAGE_MAP[selected_page_key][1]
@@ -249,4 +255,4 @@ if not embed_mode:
         st.markdown("**Versión:** 1.0.0 • Beta")
 
 # Log dashboard access
-dashboard_logger.info(f"Dashboard accessed - User viewed {selected_page}")
+dashboard_logger.info(f"Dashboard accessed - User viewed {selected_page_label}")
