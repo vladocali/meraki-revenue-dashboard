@@ -6,6 +6,27 @@ import pandas as pd
 import numpy as np
 from dashboard.config import COLORS
 
+
+def _empty_chart(message: str, height: int = 320):
+    fig = go.Figure()
+    fig.add_annotation(
+        text=message,
+        x=0.5,
+        y=0.5,
+        xref='paper',
+        yref='paper',
+        showarrow=False,
+        font=dict(size=14, color=COLORS.get('text_muted', '#6b7280')),
+    )
+    fig.update_layout(
+        template='plotly_white',
+        height=height,
+        margin=dict(l=0, r=0, t=40, b=0),
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+    )
+    return fig
+
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
     """Convert #RRGGBB color to rgba(r,g,b,a) string compatible with Plotly."""
     color = (hex_color or "").strip().lstrip('#')
@@ -80,6 +101,15 @@ def create_occupancy_bar_chart(data: pd.DataFrame):
 
 def create_price_comparison_chart(current_prices: pd.DataFrame):
     """Create current prices comparison chart."""
+
+    if current_prices is None or current_prices.empty:
+        return _empty_chart("No hay precios actuales para mostrar")
+    if not {'room', 'current_price'}.issubset(current_prices.columns):
+        return _empty_chart("Faltan columnas para construir el gráfico de precios")
+
+    current_prices = current_prices.copy()
+    if 'price_change_pct' not in current_prices.columns:
+        current_prices['price_change_pct'] = 0
     
     fig = go.Figure()
     
@@ -107,10 +137,24 @@ def create_price_comparison_chart(current_prices: pd.DataFrame):
         margin=dict(l=150, r=0, t=40, b=0),
     )
     
+    if current_prices is None or current_prices.empty:
+        return _empty_chart("No hay precios actuales para mostrar")
+    
+    required_cols = {'room', 'current_price'}
+    if not required_cols.issubset(current_prices.columns):
+        return _empty_chart("Faltan columnas para construir el gráfico de precios")
+    
+    current_prices = current_prices.copy()
+    if 'price_change_pct' not in current_prices.columns:
+        current_prices['price_change_pct'] = 0
+    
     return fig
 
 def create_revenue_forecast_chart(data: dict):
     """Create revenue forecast chart."""
+
+    if not data or data.get('revenue_7d') in (None, 0, 0.0):
+        return _empty_chart("No hay ingresos suficientes para proyectar")
     
     dates = []
     revenues = []
@@ -164,11 +208,20 @@ def create_revenue_forecast_chart(data: dict):
 
 def create_competitor_comparison_chart(competitor_data: pd.DataFrame, my_price: float):
     """Create competitor price comparison."""
+
+    if competitor_data is None or competitor_data.empty:
+        return _empty_chart("No hay datos de competencia disponibles")
+    if not {'competitor', 'nightly_price'}.issubset(competitor_data.columns):
+        return _empty_chart("Faltan columnas para comparar competencia")
     
     # Get latest prices per competitor
-    latest = competitor_data.groupby('competitor').agg({
+    latest = competitor_data.groupby('competitor', dropna=False).agg({
         'nightly_price': 'mean'
     }).reset_index()
+
+    latest = latest.dropna(subset=['competitor'])
+    if latest.empty:
+        return _empty_chart("No hay competidores válidos para mostrar")
     
     # Add our price
     latest = pd.concat([
@@ -205,6 +258,11 @@ def create_competitor_comparison_chart(competitor_data: pd.DataFrame, my_price: 
 
 def create_price_history_chart(history: pd.DataFrame):
     """Create price history line chart."""
+
+    if history is None or history.empty:
+        return _empty_chart("No hay histórico de precios para mostrar")
+    if not {'date', 'price'}.issubset(history.columns):
+        return _empty_chart("Faltan columnas para el histórico de precios")
     
     fig = go.Figure()
     
@@ -238,6 +296,11 @@ def create_price_history_chart(history: pd.DataFrame):
 
 def create_occupancy_heatmap(occupancy_data: pd.DataFrame):
     """Create occupancy heatmap for rooms."""
+
+    if occupancy_data is None or occupancy_data.empty:
+        return _empty_chart("No hay datos de ocupación para el mapa de calor")
+    if not {'room', 'date', 'occupancy_pct'}.issubset(occupancy_data.columns):
+        return _empty_chart("Faltan columnas para el mapa de calor")
     
     # Pivot data for heatmap
     pivot_data = occupancy_data.pivot_table(
@@ -270,9 +333,13 @@ def create_occupancy_heatmap(occupancy_data: pd.DataFrame):
 
 def create_revenue_breakdown_pie(demographics: dict):
     """Create revenue breakdown pie chart."""
+
+    sources = (demographics or {}).get('sources', {})
+    if not sources:
+        return _empty_chart("No hay desglose de ingresos disponible")
     
-    labels = list(demographics['sources'].keys())
-    values = list(demographics['sources'].values())
+    labels = list(sources.keys())
+    values = list(sources.values())
     
     fig = go.Figure(data=[go.Pie(
         labels=labels,
@@ -294,6 +361,9 @@ def create_revenue_breakdown_pie(demographics: dict):
 
 def create_adr_trend_chart(metric_history: list):
     """Create ADR (Average Daily Rate) trend chart."""
+
+    if not metric_history:
+        return _empty_chart("No hay histórico de ADR para mostrar")
     
     dates = [f"Día {i+1}" for i in range(len(metric_history))]
     adrs = [m.get('adr', 0) for m in metric_history]
@@ -327,9 +397,17 @@ def create_adr_trend_chart(metric_history: list):
 
 def create_suggestion_impact_chart(suggestions: pd.DataFrame):
     """Create chart showing estimated impact of suggestions."""
+
+    if suggestions is None or suggestions.empty:
+        return _empty_chart("No hay sugerencias para mostrar")
+    if not {'room', 'estimated_impact'}.issubset(suggestions.columns):
+        return _empty_chart("Faltan columnas para el impacto de sugerencias")
     
     # Only show top 5 by impact
     top_suggestions = suggestions.nlargest(5, 'estimated_impact')
+
+    if top_suggestions.empty:
+        return _empty_chart("No hay sugerencias destacadas")
     
     colors = [COLORS['success'] if x > 0 else COLORS['danger'] 
               for x in top_suggestions['estimated_impact']]

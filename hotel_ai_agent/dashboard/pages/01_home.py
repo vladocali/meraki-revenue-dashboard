@@ -115,7 +115,7 @@ def load_data():
                         'reason': 'Precios estables basados en demanda actual',
                         'estimated_impact': 0,
                     })
-                data['suggestions'] = suggestions[:5]  # Top 5
+                data['suggestions'] = pd.DataFrame(suggestions[:5])  # Top 5
         except:
             pass
         
@@ -279,20 +279,45 @@ def render_top_suggestions():
     st.subheader("💡 Top Sugerencias de Precio")
     
     suggestions = data['suggestions']
+    if isinstance(suggestions, list):
+        suggestions = pd.DataFrame(suggestions)
+    elif isinstance(suggestions, dict):
+        suggestions = pd.DataFrame([suggestions])
+
+    if suggestions is None or suggestions.empty:
+        st.info("No hay sugerencias disponibles")
+        return
+
+    if 'estimated_impact' not in suggestions.columns:
+        st.info("No hay sugerencias disponibles")
+        return
+
     top_suggestions = suggestions.nlargest(5, 'estimated_impact')
     
     if not top_suggestions.empty:
         # Create display dataframe
-        display_df = top_suggestions[[
+        available_cols = [c for c in [
             'room', 'action', 'current_price', 'suggested_price', 'change_pct', 'reason'
-        ]].copy()
+        ] if c in top_suggestions.columns]
+        display_df = top_suggestions[available_cols].copy()
         
-        display_df.columns = ['Habitación', 'Acción', 'Precio Actual', 'Precio Sugerido', '% Cambio', 'Razón']
+        rename_map = {
+            'room': 'Habitación',
+            'action': 'Acción',
+            'current_price': 'Precio Actual',
+            'suggested_price': 'Precio Sugerido',
+            'change_pct': '% Cambio',
+            'reason': 'Razón',
+        }
+        display_df = display_df.rename(columns=rename_map)
         
         # Format numbers
-        display_df['Precio Actual'] = display_df['Precio Actual'].apply(lambda x: f"${x:,.0f}")
-        display_df['Precio Sugerido'] = display_df['Precio Sugerido'].apply(lambda x: f"${x:,.0f}")
-        display_df['% Cambio'] = display_df['% Cambio'].apply(lambda x: f"{x:+.1f}%")
+        if 'Precio Actual' in display_df.columns:
+            display_df['Precio Actual'] = display_df['Precio Actual'].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "-")
+        if 'Precio Sugerido' in display_df.columns:
+            display_df['Precio Sugerido'] = display_df['Precio Sugerido'].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "-")
+        if '% Cambio' in display_df.columns:
+            display_df['% Cambio'] = display_df['% Cambio'].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "-")
         
         st.dataframe(display_df, use_container_width=True, hide_index=True)
     else:

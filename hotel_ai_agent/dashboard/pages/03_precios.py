@@ -19,6 +19,16 @@ from dashboard.utils.logger import dashboard_logger
 st.title("💰 Gestión de Precios")
 st.markdown("---")
 
+
+def _to_dataframe(value) -> pd.DataFrame:
+    if isinstance(value, pd.DataFrame):
+        return value
+    if isinstance(value, list):
+        return pd.DataFrame(value)
+    if isinstance(value, dict):
+        return pd.DataFrame([value])
+    return pd.DataFrame()
+
 # Tabs
 tab1, tab2, tab3 = st.tabs(["Precios Actual", "Sugerencias IA", "Historial"])
 
@@ -44,10 +54,10 @@ with tab1:
                     return prices
             
             # Fallback to mock
-            return get_mock_data('current_prices')
+            return _to_dataframe(get_mock_data('current_prices'))
         except Exception as e:
             dashboard_logger.error(f"Error loading current prices: {e}")
-            return get_mock_data('current_prices')
+            return _to_dataframe(get_mock_data('current_prices'))
     
     current_prices = load_current_prices()
     
@@ -101,10 +111,10 @@ with tab2:
                     return pd.DataFrame(suggestions)
             
             # Fallback to mock
-            return get_mock_data('suggestions')
+            return _to_dataframe(get_mock_data('suggestions'))
         except Exception as e:
             dashboard_logger.error(f"Error loading suggestions: {e}")
-            return get_mock_data('suggestions')
+            return _to_dataframe(get_mock_data('suggestions'))
     
     suggestions = load_suggestions()
     
@@ -186,7 +196,7 @@ with tab3:
     @st.cache_data(ttl=300)
     def load_rooms():
         try:
-            current_prices = get_mock_data('current_prices')
+            current_prices = _to_dataframe(get_mock_data('current_prices'))
             return current_prices['room'].tolist()
         except:
             return []
@@ -198,7 +208,7 @@ with tab3:
         @st.cache_data(ttl=300)
         def load_price_history(room):
             try:
-                history = get_mock_data('price_history')
+                history = _to_dataframe(get_mock_data('price_history'))
                 return history[history['room'] == room] if isinstance(history, pd.DataFrame) else None
             except:
                 return None

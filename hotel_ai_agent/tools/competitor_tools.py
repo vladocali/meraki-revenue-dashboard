@@ -4,6 +4,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -64,15 +65,34 @@ def lightweight_scrape_price(url: str, timeout: int = 12) -> CompetitorListing |
         logger.info("No se detectaron precios en %s", url)
         return None
 
-    source = "airbnb" if "airbnb" in url.lower() else "booking" if "booking" in url.lower() else "web"
+    parsed_url = urlparse(url)
+    hostname = (parsed_url.netloc or "web").lower().replace("www.", "")
+    if "airbnb" in hostname or "airbnb" in url.lower():
+        source = "airbnb"
+    elif "booking" in hostname or "booking" in url.lower():
+        source = "booking"
+    elif "hotels" in hostname or "hotel" in hostname:
+        source = "google_hotel"
+    else:
+        source = hostname.split(":")[0].split(".")[0] or "web"
+
     nightly_price = min(candidates)
+
+    room_type = None
+    lower_text = text_content.lower()
+    if "suite" in lower_text:
+        room_type = "Suite"
+    elif "deluxe" in lower_text:
+        room_type = "Deluxe"
+    elif "estándar" in lower_text or "estandar" in lower_text:
+        room_type = "Estándar"
 
     return CompetitorListing(
         source=source,
         listing_title=title,
         listing_url=url,
         location=None,
-        room_type=None,
+        room_type=room_type,
         capacity=None,
         nightly_price=nightly_price,
         currency="COP",

@@ -30,6 +30,7 @@ class Settings:
 
     suggestion_mode: bool
     daily_run_time: str
+    competitor_poll_minutes: int
 
     min_price_factor: float
     max_price_factor: float
@@ -70,6 +71,7 @@ def get_settings() -> Settings:
         reports_dir=BASE_DIR / os.getenv("REPORTS_DIR", "reports"),
         suggestion_mode=_get_bool("SUGGESTION_MODE", True),
         daily_run_time=os.getenv("DAILY_RUN_TIME", "02:00"),
+        competitor_poll_minutes=int(os.getenv("COMPETITOR_POLL_MINUTES", "180")),
         min_price_factor=float(os.getenv("MIN_PRICE_FACTOR", "0.85")),
         max_price_factor=float(os.getenv("MAX_PRICE_FACTOR", "1.20")),
         default_min_price=int(os.getenv("DEFAULT_MIN_PRICE", "70000")),

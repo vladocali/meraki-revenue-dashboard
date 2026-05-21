@@ -19,6 +19,16 @@ from dashboard.utils.logger import dashboard_logger
 st.title("📑 Generación de Reportes")
 st.markdown("---")
 
+
+def _to_dataframe(value) -> pd.DataFrame:
+    if isinstance(value, pd.DataFrame):
+        return value
+    if isinstance(value, list):
+        return pd.DataFrame(value)
+    if isinstance(value, dict):
+        return pd.DataFrame([value])
+    return pd.DataFrame()
+
 # Tab structure
 tab1, tab2, tab3 = st.tabs(["Reportes Listos", "Análisis IA Detallado", "Exportar Datos"])
 
@@ -33,14 +43,15 @@ with tab1:
             if db.is_available():
                 occupancy = db.get_daily_occupancy_summary()
                 if occupancy.empty:
-                    occupancy = get_mock_data('daily_summary')
+                    occupancy = _to_dataframe(get_mock_data('daily_summary'))
             else:
-                occupancy = get_mock_data('daily_summary')
+                occupancy = _to_dataframe(get_mock_data('daily_summary'))
             
             # Get real metrics
             revenue_7d = db.get_revenue_7d() if db.is_available() else {}
             adr = db.get_adr() if db.is_available() else 0
             revpar = db.get_revpar() if db.is_available() else 0
+            competitor_snapshots = db.get_competitor_prices(days=7) if db.is_available() else pd.DataFrame()
             
             metrics = {
                 'adr': adr or get_mock_data('revenue')['adr'],
@@ -48,12 +59,15 @@ with tab1:
                 'revenue_7d': revenue_7d.get('total', 0) or get_mock_data('revenue')['revenue_7d'],
             }
             
-            suggestions = get_mock_data('suggestions')
+            suggestions = _to_dataframe(get_mock_data('suggestions'))
+            if not competitor_snapshots.empty:
+                suggestions = suggestions.copy()
+                suggestions['competitor_price'] = competitor_snapshots['nightly_price'].mean()
             
             return occupancy, metrics, suggestions
         except Exception as e:
             dashboard_logger.error(f"Error loading report data: {e}")
-            return get_mock_data('daily_summary'), get_mock_data('revenue'), get_mock_data('suggestions')
+            return _to_dataframe(get_mock_data('daily_summary')), get_mock_data('revenue'), _to_dataframe(get_mock_data('suggestions'))
     
     occupancy_data, metrics, suggestions = load_report_data()
     
@@ -178,10 +192,15 @@ with tab2:
     # Load data
     occupancy_data, metrics, suggestions = load_report_data()
     
-    if occupancy_data is not None:
+    if occupancy_data is not None and not occupancy_data.empty:
         # Calculate analytics
         avg_occ = occupancy_data['occupancy_pct'].mean() / 100 if len(occupancy_data) > 0 else 0
-        competitor_data = get_mock_data('competitor')
+        competitor_data = _to_dataframe(get_mock_data('competitor'))
+        db_competitor = get_dashboard_db().get_competitor_prices(days=7) if get_dashboard_db().is_available() else pd.DataFrame()
+        if not db_competitor.empty:
+            competitor_data = db_competitor.copy()
+            competitor_data['competitor'] = competitor_data['source'].astype(str).str.title()
+            competitor_data['platform'] = competitor_data['source'].astype(str).str.title()
         comp_avg_price = competitor_data['nightly_price'].mean() if not competitor_data.empty else 0
         
         col1, col2 = st.columns(2)
@@ -253,16 +272,16 @@ with tab3:
         
         try:
             if export_occupancy:
-                export_data['occupancy'] = get_mock_data('daily_summary').to_dict('records')
+                export_data['occupancy'] = _to_dataframe(get_mock_data('daily_summary')).to_dict('records')
             
             if export_prices:
-                export_data['prices'] = get_mock_data('current_prices').to_dict('records')
+                export_data['prices'] = _to_dataframe(get_mock_data('current_prices')).to_dict('records')
             
             if export_suggestions:
-                export_data['suggestions'] = get_mock_data('suggestions').to_dict('records')
+                export_data['suggestions'] = _to_dataframe(get_mock_data('suggestions')).to_dict('records')
             
             if export_competitor:
-                export_data['competitor'] = get_mock_data('competitor').to_dict('records')
+                export_data['competitor'] = _to_dataframe(get_mock_data('competitor')).to_dict('records')
             
             if export_demographics:
                 export_data['demographics'] = get_mock_data('demographics')

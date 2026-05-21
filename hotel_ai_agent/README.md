@@ -56,8 +56,14 @@ streamlit run app.py
 # Ejecutar análisis ahora
 python main.py --run-now
 
+# Capturar solo competencia ahora
+python main.py --competitor-now
+
 # Activar scheduler (2:00 AM diario)
 python main.py --scheduler
+
+# Activar recolector automático de competencia (cada 3 horas por defecto)
+python main.py --competitor-scheduler
 ```
 
 ## 📁 Estructura
@@ -208,6 +214,7 @@ COMPETITOR_URLS=https://www.airbnb.com/...
 
 # ===== SCHEDULER =====
 DAILY_RUN_TIME=02:00
+COMPETITOR_POLL_MINUTES=180
 ```
 
 ## 🚀 Uso
@@ -257,6 +264,14 @@ python main.py --scheduler
 ```
 
 Mantiene ejecutándose en background y ejecuta análisis todos los días a las 2:00 AM.
+
+**Recolector automático de competencia:**
+
+```bash
+python main.py --competitor-scheduler
+```
+
+Captura precios de competencia cada 3 horas por defecto y los guarda en `competitor_price_snapshots`.
 
 ### Archivos Generados
 
