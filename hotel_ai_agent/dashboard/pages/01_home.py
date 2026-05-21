@@ -22,14 +22,6 @@ from dashboard.utils.formatters import format_currency, format_percentage, forma
 from dashboard.utils.cache import cached_function
 from dashboard.utils.logger import dashboard_logger
 
-# Page configuration
-st.set_page_config(
-    page_title="Home - Revenue Dashboard",
-    page_icon="🏨",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 # Custom CSS
 st.markdown("""
 <style>

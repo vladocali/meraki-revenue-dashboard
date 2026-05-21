@@ -15,12 +15,6 @@ from dashboard.services.analytics_service import AnalyticsService
 from dashboard.services.ai_insights import get_ai_service
 from dashboard.utils.logger import dashboard_logger
 
-st.set_page_config(
-    page_title="Reportes - Revenue Dashboard",
-    page_icon="📑",
-    layout="wide"
-)
-
 st.title("📑 Generación de Reportes")
 st.markdown("---")
 

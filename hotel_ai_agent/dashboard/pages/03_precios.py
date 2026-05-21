@@ -15,12 +15,6 @@ from dashboard.data.mock_data import get_mock_data
 from dashboard.utils.formatters import format_currency, format_percentage
 from dashboard.utils.logger import dashboard_logger
 
-st.set_page_config(
-    page_title="Precios - Revenue Dashboard",
-    page_icon="💰",
-    layout="wide"
-)
-
 st.title("💰 Gestión de Precios")
 st.markdown("---")
 

@@ -14,12 +14,6 @@ from dashboard.data.mock_data import get_mock_data
 from dashboard.utils.formatters import format_percentage, format_occupancy_status
 from dashboard.utils.logger import dashboard_logger
 
-st.set_page_config(
-    page_title="Ocupación - Revenue Dashboard",
-    page_icon="📅",
-    layout="wide"
-)
-
 st.title("📅 Análisis de Ocupación")
 st.markdown("---")
 
