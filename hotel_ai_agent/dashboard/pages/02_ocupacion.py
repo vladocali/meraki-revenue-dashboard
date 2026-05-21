@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dashboard.config import COLORS
 from dashboard.components.charts import create_occupancy_heatmap, create_occupancy_line_chart, create_occupancy_bar_chart
 from dashboard.data.mock_data import get_mock_data
+from dashboard.services.dashboard_db import get_dashboard_db
 from dashboard.utils.formatters import format_percentage, format_occupancy_status
 from dashboard.utils.logger import dashboard_logger
 
@@ -20,16 +21,31 @@ st.markdown("---")
 @st.cache_data(ttl=300)
 def load_occupancy_data():
     try:
-        occupancy_7d = get_mock_data('occupancy_7d')
-        daily_summary = get_mock_data('daily_summary')
-        return occupancy_7d, daily_summary
+        source = 'mock'
+        occupancy_7d = pd.DataFrame()
+        daily_summary = pd.DataFrame()
+
+        db = get_dashboard_db()
+        if db.is_available():
+            occupancy_7d = db.get_7day_occupancy()
+            daily_summary = db.get_daily_occupancy_summary()
+            if not occupancy_7d.empty and not daily_summary.empty:
+                source = 'db'
+
+        if occupancy_7d.empty or daily_summary.empty:
+            occupancy_7d = get_mock_data('occupancy_7d')
+            daily_summary = get_mock_data('daily_summary')
+
+        return occupancy_7d, daily_summary, source
     except Exception as e:
         dashboard_logger.error(f"Error loading occupancy data: {e}")
-        return None, None
+        return None, None, 'mock'
 
-occupancy_7d, daily_summary = load_occupancy_data()
+occupancy_7d, daily_summary, occupancy_source = load_occupancy_data()
 
 if occupancy_7d is not None and daily_summary is not None:
+    st.caption("Datos reales" if occupancy_source == 'db' else "Datos demo")
+
     # KPI Row
     col1, col2, col3, col4 = st.columns(4)
     

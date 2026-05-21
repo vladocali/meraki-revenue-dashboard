@@ -3,6 +3,22 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+def _get_config_value(name: str, default: str = "") -> str:
+    """Read configuration from env vars first, then Streamlit secrets when available."""
+    env_value = os.getenv(name)
+    if env_value not in (None, ""):
+        return str(env_value)
+
+    try:
+        import streamlit as st
+        secret_value = st.secrets.get(name)
+        if secret_value not in (None, ""):
+            return str(secret_value)
+    except Exception:
+        pass
+
+    return default
+
 # Load environment variables
 load_dotenv()
 
@@ -51,14 +67,14 @@ KPI_THRESHOLDS = {
 }
 
 # Database
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = int(os.getenv("DB_PORT", 3306))
-DB_NAME = os.getenv("DB_NAME", "meraki")
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_HOST = _get_config_value("DB_HOST", "127.0.0.1")
+DB_PORT = int(_get_config_value("DB_PORT", "3306"))
+DB_NAME = _get_config_value("DB_NAME", "meraki")
+DB_USER = _get_config_value("DB_USER", "root")
+DB_PASSWORD = _get_config_value("DB_PASSWORD", "")
 
 # OpenAI
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = _get_config_value("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-4o-mini"
 
 # Dashboard Cache Settings
@@ -76,7 +92,7 @@ CHART_CONFIG = {
 REPORT_FORMAT = ["txt", "csv", "json"]
 
 # Logging
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_LEVEL = _get_config_value("LOG_LEVEL", "INFO")
 
 # Currency
 CURRENCY = "COP"

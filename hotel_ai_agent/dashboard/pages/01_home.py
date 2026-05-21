@@ -16,6 +16,7 @@ from dashboard.components.charts import (
     create_occupancy_line_chart, create_revenue_forecast_chart, create_occupancy_bar_chart
 )
 from dashboard.data.mock_data import get_mock_data
+from dashboard.services.dashboard_db import get_dashboard_db
 from dashboard.services.analytics_service import AnalyticsService
 from dashboard.services.ai_insights import get_ai_service
 from dashboard.utils.formatters import format_currency, format_percentage, format_occupancy_status
@@ -34,7 +35,17 @@ st.markdown("""
 def load_data():
     """Load all data with caching."""
     try:
-        occupancy_data = get_mock_data('daily_summary')
+        occupancy_source = 'mock'
+        occupancy_data = pd.DataFrame()
+        db = get_dashboard_db()
+        if db.is_available():
+            occupancy_data = db.get_daily_occupancy_summary()
+            if not occupancy_data.empty:
+                occupancy_source = 'db'
+
+        if occupancy_data.empty:
+            occupancy_data = get_mock_data('daily_summary')
+
         metrics = get_mock_data('revenue')
         suggestions = get_mock_data('suggestions')
         alerts = get_mock_data('alerts')
@@ -42,6 +53,7 @@ def load_data():
         
         return {
             'occupancy_data': occupancy_data,
+            'occupancy_source': occupancy_source,
             'metrics': metrics,
             'suggestions': suggestions,
             'alerts': alerts,
@@ -109,6 +121,7 @@ def render_charts():
             create_occupancy_line_chart(data['occupancy_data']),
             use_container_width=True
         )
+        st.caption("Datos reales" if data.get('occupancy_source') == 'db' else "Datos demo")
     
     with col2:
         st.plotly_chart(

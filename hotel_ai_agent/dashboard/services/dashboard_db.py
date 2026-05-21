@@ -1,54 +1,129 @@
 # Dashboard Database Service
-import sys
-import os
-from pathlib import Path
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import create_string_from_text
+from sqlalchemy import create_engine, text
+
 from dashboard.config import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
 from dashboard.utils.logger import dashboard_logger
-from tools.db_tools import Database
 
 class DashboardDatabase:
     """Database service for dashboard."""
     
     def __init__(self):
         """Initialize database connection."""
+        self.engine = None
         try:
             connection_string = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-            self.db = Database(connection_string)
+            self.engine = create_engine(connection_string, pool_pre_ping=True, future=True)
+            with self.engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
             dashboard_logger.info("Dashboard database connected successfully")
         except Exception as e:
             dashboard_logger.error(f"Failed to connect to database: {e}")
-            self.db = None
+            self.engine = None
+
+    def is_available(self) -> bool:
+        return self.engine is not None
+
+    def execute_query(self, query: str, params: dict | None = None) -> pd.DataFrame:
+        """Run SQL query and return a dataframe."""
+        if self.engine is None:
+            return pd.DataFrame()
+
+        try:
+            with self.engine.connect() as connection:
+                return pd.read_sql(text(query), connection, params=params or {})
+        except Exception as e:
+            dashboard_logger.error(f"Database query failed: {e}")
+            return pd.DataFrame()
+
+    def get_active_rooms(self) -> pd.DataFrame:
+        """Get list of active rooms from Meraki."""
+        query = """
+        SELECT nombre AS room
+        FROM habitaciones
+        WHERE activa = 1
+        ORDER BY CAST(nombre AS UNSIGNED), nombre
+        """
+        return self.execute_query(query)
+
+    def get_reservations_window(self, start_date: date, end_date: date) -> pd.DataFrame:
+        """Get reservations overlapping the requested window."""
+        query = """
+        SELECT DISTINCT
+            TRIM(Habitacion) AS room,
+            DATE(CheckIn) AS checkin,
+            DATE(CheckOut) AS checkout
+        FROM datos
+        WHERE Habitacion IS NOT NULL
+          AND TRIM(Habitacion) <> ''
+          AND DATE(CheckIn) <= :end_date
+          AND DATE(CheckOut) > :start_date
+          AND UPPER(COALESCE(EstadoOperacion, 'RESERVA')) NOT IN ('CANCELADA', 'NO SHOW')
+        """
+        return self.execute_query(query, {
+            'start_date': start_date,
+            'end_date': end_date,
+        })
     
     def get_7day_occupancy(self) -> pd.DataFrame:
-        """Get 7-day occupancy forecast from database."""
+        """Get real per-room occupancy for today and the next 6 days."""
         try:
-            query = """
-            SELECT 
-                DATE(d.CheckIn) as date,
-                COUNT(DISTINCT h.id_habitacion) as total_rooms,
-                COUNT(DISTINCT d.Habitacion) as occupied_rooms,
-                ROUND(COUNT(DISTINCT d.Habitacion) / COUNT(DISTINCT h.id_habitacion) * 100, 2) as occupancy_pct
-            FROM habitaciones h
-            LEFT JOIN datos d ON h.id_habitacion = d.Habitacion 
-                AND d.CheckIn <= CURDATE() + INTERVAL 7 DAY
-                AND d.CheckOut > CURDATE()
-            WHERE h.activa = 1
-            GROUP BY DATE(d.CheckIn)
-            ORDER BY date
-            """
-            
-            result = self.db.execute_query(query)
-            dashboard_logger.info(f"Retrieved 7-day occupancy data: {len(result)} rows")
+            rooms_df = self.get_active_rooms()
+            if rooms_df.empty:
+                return pd.DataFrame()
+
+            start_date = date.today()
+            end_date = start_date + timedelta(days=6)
+            reservations_df = self.get_reservations_window(start_date, end_date)
+
+            if not reservations_df.empty:
+                reservations_df['checkin'] = pd.to_datetime(reservations_df['checkin']).dt.date
+                reservations_df['checkout'] = pd.to_datetime(reservations_df['checkout']).dt.date
+
+            timeline = []
+            for offset in range(7):
+                current_date = start_date + timedelta(days=offset)
+                for room in rooms_df['room'].astype(str):
+                    room_reservations = reservations_df[reservations_df['room'].astype(str) == room] if not reservations_df.empty else pd.DataFrame()
+                    occupied = False
+                    if not room_reservations.empty:
+                        occupied = ((room_reservations['checkin'] <= current_date) & (room_reservations['checkout'] > current_date)).any()
+
+                    timeline.append({
+                        'date': pd.Timestamp(current_date),
+                        'day_of_week': pd.Timestamp(current_date).strftime('%A'),
+                        'room': room,
+                        'occupied': int(bool(occupied)),
+                        'occupancy_pct': 100.0 if occupied else 0.0,
+                    })
+
+            result = pd.DataFrame(timeline)
+            dashboard_logger.info(f"Retrieved real 7-day occupancy data: {len(result)} rows")
             return result
         
         except Exception as e:
             dashboard_logger.error(f"Error fetching 7-day occupancy: {e}")
+            return pd.DataFrame()
+
+    def get_daily_occupancy_summary(self) -> pd.DataFrame:
+        """Aggregate real occupancy by day."""
+        try:
+            occupancy_data = self.get_7day_occupancy()
+            if occupancy_data.empty:
+                return pd.DataFrame()
+
+            total_rooms = occupancy_data['room'].nunique()
+            summary = occupancy_data.groupby('date', as_index=False).agg({
+                'occupied': 'sum'
+            })
+            summary['total_rooms'] = int(total_rooms)
+            summary['free_rooms'] = summary['total_rooms'] - summary['occupied']
+            summary['occupancy_pct'] = ((summary['occupied'] / summary['total_rooms']) * 100).round(2)
+            return summary[['date', 'occupied', 'occupancy_pct', 'total_rooms', 'free_rooms']]
+        except Exception as e:
+            dashboard_logger.error(f"Error building daily occupancy summary: {e}")
             return pd.DataFrame()
     
     def get_current_room_prices(self) -> pd.DataFrame:
@@ -66,7 +141,7 @@ class DashboardDatabase:
             AND h.activa = 1
             """
             
-            result = self.db.execute_query(query)
+            result = self.execute_query(query)
             dashboard_logger.info(f"Retrieved current prices: {len(result)} rooms")
             return result
         
@@ -93,7 +168,7 @@ class DashboardDatabase:
             LIMIT {limit}
             """
             
-            result = self.db.execute_query(query)
+            result = self.execute_query(query)
             dashboard_logger.info(f"Retrieved revenue recommendations: {len(result)} records")
             return result
         
@@ -115,7 +190,7 @@ class DashboardDatabase:
             ORDER BY captured_at DESC
             """
             
-            result = self.db.execute_query(query)
+            result = self.execute_query(query)
             dashboard_logger.info(f"Retrieved competitor prices: {len(result)} records")
             return result
         
@@ -137,7 +212,7 @@ class DashboardDatabase:
             AND EstadoOperacion NOT IN ('Cancelada', 'No show')
             """
             
-            result = self.db.execute_query(query)
+            result = self.execute_query(query)
             if not result.empty:
                 dashboard_logger.info("Retrieved booking statistics")
                 return result.iloc[0].to_dict()
@@ -155,7 +230,9 @@ class DashboardDatabase:
             VALUES ('{user}', '{action}', '{details}', NOW())
             """
             
-            self.db.execute_non_query(query)
+            if self.engine is not None:
+                with self.engine.begin() as connection:
+                    connection.execute(text(query))
             dashboard_logger.info(f"Logged action: {action} by {user}")
         
         except Exception as e:
